@@ -49,11 +49,21 @@ def rstudent(mu, lam, alpha):
     return mu + Z*sqrt(alpha/X)/sqrt(lam);
     
 # Gamma distribution
-def pgamma():
-    pass
+
+def logpgamma(x,a,b):
+    """Log gamma PDF. 
+
+    The parameter b is the INVERSE scale, i.e. reciprocal of the corresponding
+    parameter of the MATLAB gampdf function.
+    """
+    lnc = a*log(b)-gammaln(a)
+    return lnc + (a-1)*log(x) - b*x
+
+def pgamma(x,a,b):
+    return exp(logpgamma(x,a,b))
     
-def rgamma():
-    pass
+def rgamma(a,b):
+    return R.gamma(a,1/b)
     
 # Binomial distribution
 def rbinom(p, n):
@@ -78,7 +88,5 @@ def rdiscrete(pvals, numsamples=1):
         return sampler.sample(numsamples)
     else:
         cdf = cumsum(pvals)
-        unif = R.uniform(size=numsamples)
+        unif = R.random_sample(size=numsamples)
         return cdf.searchsorted(unif)
-
-    
