@@ -1,5 +1,5 @@
 import numpy as N
-from numpy import array, exp, log, sqrt, cumsum,  pi
+from numpy import array, exp, log, sqrt, cumsum, empty, pi
 from scipy.special import gammaln
 import numpy.random as R
 
@@ -13,6 +13,60 @@ LOG2PI = log(2*pi)
 
 def isarray(a):
     return isinstance(a, N.ndarray)
+
+class ArrayOfLists(object):
+    def __init__(self,size):
+        self.__array = empty(size,dtype=object)
+        for t in range(size):
+            self.__array[t] = []
+        self.size = size
+
+    def get(self,t,i):
+        if t < self.__t and i < self.len(t):
+            return self.__array[t][i]
+        else:
+            raise ValueError, "Index out of bounds"
+
+    def len(self,t):
+        return len(self.__array[t])
+
+    def append(self,t,x):
+        self.__array[t].append(x)
+
+    def set(self,t,i,x):
+        self.__array[t][i] = x
+
+    def __str__(self):
+        out = []
+        for t in range(self.size):
+            if self.__array[t] != []:
+                out.append(str(t) + ':\n' + str(self.__array[t]) + '\n')
+
+        return ''.join(out)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class ExtendingList(list):
+    """A list type that grows if the given index is out of bounds and fills the
+    new space with a given default value."""
+    def __init__(self,default=lambda:0):
+        list.__init__(self)
+        self.default = default
+
+    def __check(self,i):
+        if len(self) <= i:
+            for j in range(len(self),i+1):
+                self.append(self.default())
+
+    def __getitem__(self,i):
+        self.__check(i)
+        return list.__getitem__(self,i)
+
+    def __setitem__(self,i,x):
+        self.__check(i)
+        list.__setitem__(self,i,x)
 
 ### Probability distributions 
 # Normal distribution

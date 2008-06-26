@@ -183,10 +183,51 @@ class DiagonalConjugate(Model):
 
 
 
-
 class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
     """
-    pass
+    def __init__(self,T):
+        # allocation variables for all time steps
+        self.c = zeros(T,dtype=uint16)
+        # death times of allocation variables (assume they don't die until they do)
+        self.d = (T+1) * ones(T,dtype=uint32)
+        
+        # current time
+        # p.t = 0;
+        
+        # total number of clusters in this particle up to the current time
+        self.K = 0
+        
+        # column vector containing the sizes of the current non-empty clusters
+        # p.m = zeros(T*Nt,1);
+        
+        # array to store class counts at each time step
+        self.mstore = ArrayOfLists(T)
+        
+        self.lastspike = ArrayOfLists(T)
+        
+        # cell array to store the sampled values of rho across time
+        # self.rhostore = zeros(T);
+        
+        # Parameter values of each cluster 1...K at each time step 1...T
+        # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
+        self.U = ArrayOfLists(T);
+        
+        # vector to store the birth times of clusters
+        # p.birthtime = [];
+        
+        # vector to store the death times of clusters (0 if not dead)
+        # p.deathtime = [];
 
+    def __str__(self):
+        out = []
+        out.append('c: ' + str(self.c)+'\n')
+        out.append('d: ' + str(self.d)+'\n')
+        out.append('K: ' + str(self.K)+'\n')
+        out.append('mstore: ' + str(self.mstore)+'\n')
+        out.append('lastspike: ' + str(self.lastspike)+'\n')
+        out.append('U: ' + str(self.U)+'\n')
+        return ''.join(out)
+
+    __repr__ = __str__
