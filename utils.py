@@ -22,10 +22,25 @@ class ArrayOfLists(object):
         self.size = size
 
     def get(self,t,i):
-        if t < self.__t and i < self.len(t):
+        if t < self.size and i < self.len(t):
             return self.__array[t][i]
         else:
-            raise ValueError, "Index out of bounds"
+            raise ValueError, 'Index out of bounds t=' + str(t) + ' i=' + str(i)
+
+    def copy_list(self,fro,to):
+        self.__array[to] = self.__array[fro][:]
+
+    def get_list(self,t):
+        return self.__array[t]
+
+    def get_array(self,t):
+        return array(self.__array[t])
+
+    def set_array(self,t,a):
+        self.__array[t] = a.tolist()
+
+    def set_list(self,t,l):
+        self.__array[t] = l
 
     def len(self,t):
         return len(self.__array[t])

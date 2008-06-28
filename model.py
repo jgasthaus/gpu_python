@@ -60,20 +60,34 @@ class DiagonalConjugate(Model):
             self.empty = True;
         else:
             self.empty = False;
-
-        self.mean = mean(data,1)
-        # column vector of variances
-        self.nvar =  (data - samplemean)**2
-        self.nk = data.shape[1]
-        self.nn = self.params.n0 + self.nk
-        self.mun = (self.params.n0 * self.params.mu0 + self.nk * self.mean)/(self.nn)
-        self.bn = self.params.b + 0.5*self.nvar + 0.5/self.nn*self.nk*self.params.n0* \
-                    (self.params.mu0 - self.mean)**2;
-        self.ibn = 1/self.bn;
+        if len(data.shape) == 1:
+            # just one data point
+            
+            self.mean = data
+            self.nvar =  zeros(data.shape)
+            self.nk = 1
+            self.nn = self.params.n0 + 1
+            self.mun = (self.params.n0 * self.params.mu0 + self.mean)/self.nn
+            self.bn = self.params.b  + 0.5/self.nn*self.params.n0* \
+                        (self.params.mu0 - self.mean)**2
+            self.ibn = 1/self.bn;
+        else:
+            self.mean = mean(data,1)
+            # column vector of variances
+            self.nvar =  (data - samplemean)**2
+            self.nk = data.shape[1]
+            self.nn = self.params.n0 + self.nk
+            self.mun = (self.params.n0 * self.params.mu0 + self.nk * self.mean)/(self.nn)
+            self.bn = self.params.b + 0.5*self.nvar + 0.5/self.nn*self.nk*self.params.n0* \
+                        (self.params.mu0 - self.mean)**2;
+            self.ibn = 1/self.bn;
 
     def p_log_likelihood(self,x,params):
         """Compute log p(x|params)"""
         return sum(logpnorm(x,params.mu,params.lam))
+    
+    def p_likelihood(self,x,params):
+        return exp(self.p_log_likelihood(x,params))
 
     def p_log_predictive(self,x):
         """Compute log p(x|z)."""
@@ -86,6 +100,9 @@ class DiagonalConjugate(Model):
                 self.nn*(self.params.a + 0.5*self.nk)/(self.nn + 1)*self.ibn,
                 2*self.params.a+self.nk))
         return p
+
+    def p_predictive(self,x):
+        return exp(self.p_log_predictive(x))
 
     def p_log_posterior_mean(self,mu):
         """Compute log p(mu|z)."""
@@ -112,6 +129,9 @@ class DiagonalConjugate(Model):
         return sum(logpstudent(x,self.params.mu0,
             self.params.n0/(self.params.n0+1)*self.params.a/self.params.b,
             2.*self.params.a))
+
+    def p_prior(self,x):
+        return exp(self.p_log_prior(x))
     
     def p_log_prior_params(self,mu,lam):
         return sum(logpnorm(mu,self.params.mu0,self.params.n0 * lam)) + \
@@ -215,10 +235,10 @@ class Particle(object):
         self.U = ArrayOfLists(T);
         
         # vector to store the birth times of clusters
-        # p.birthtime = [];
+        self.birthtime = ExtendingList()
         
         # vector to store the death times of clusters (0 if not dead)
-        # p.deathtime = [];
+        self.deathtime = ExtendingList() 
 
     def __str__(self):
         out = []
