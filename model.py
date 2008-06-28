@@ -15,30 +15,30 @@ class TransitionKernel(object):
 
 class MetropolisWalk(TransitionKernel):
 
-    def walk(self,mu,lam,p_old=None):
+    def walk(self,params,p_old=None):
         if p_old == None:
-            p_old = exp(self.model.p_log_prior_params(mu,lam));
+            p_old = exp(self.model.p_log_prior_params(params));
         
         # random walk on mean
-        n_mu = mu + self.params[0] * R.standard_normal(self.model.dims)
+        n_mu = params.mu + self.params[0] * R.standard_normal(self.model.dims)
         
-        n_lam = lam + self.params[1] * R.standard_normal(self.model.dims)
+        n_lam = params.lam + self.params[1] * R.standard_normal(self.model.dims)
 
         # keep values that are about to become negative the same
         if self.model.dims > 1:
             idx = n_lam <= 0
-            n_lam[idx] = lam[idx]
+            n_lam[idx] = params.lam[idx]
         else:
             if n_lam <= 0:
-                n_lam = lam
+                n_lam = params.lam
         
         # Metropolis update rule
-        p_new = exp(self.model.p_log_prior_params(n_mu,n_lam))
+        p_new = exp(self.model.p_log_prior_params(params))
         
         if R.rand() > p_new/p_old: # not accepted -> keep old values
             n_mu = mu
             n_lam = lam
-        return self.model.get_storage(mu,lam)
+        return self.model.get_storage(n_mu,n_lam)
 
 class Model(object):
     pass
@@ -56,10 +56,10 @@ class DiagonalConjugate(Model):
         self.walk = self.kernel.walk
 
     def set_data(self,data):
-        if isempty(data):
-            self.empty = True;
-        else:
-            self.empty = False;
+        # if data.shape[1]!=0:
+        #     self.empty = True
+        # else:
+        #     self.empty = False;
         if len(data.shape) == 1:
             # just one data point
             
@@ -121,11 +121,12 @@ class DiagonalConjugate(Model):
             p = sum(logpgamma(lam,self.params.a+0.5*self.nk,self.bn));
         return p
     
-    def p_posterior(self,mu,lam):
-        return exp(p_log_posterior_mean(mu) +
-                   p_log_posterior_precision(lam))
+    def p_posterior(self,params):
+        return exp(self.p_log_posterior_mean(params.mu) +
+                   self.p_log_posterior_precision(params.lam))
 
     def p_log_prior(self,x):
+        """Compute log p(x) (i.e. \int p(x|theta)p(theta) dtheta)."""
         return sum(logpstudent(x,self.params.mu0,
             self.params.n0/(self.params.n0+1)*self.params.a/self.params.b,
             2.*self.params.a))
@@ -133,9 +134,12 @@ class DiagonalConjugate(Model):
     def p_prior(self,x):
         return exp(self.p_log_prior(x))
     
-    def p_log_prior_params(self,mu,lam):
-        return sum(logpnorm(mu,self.params.mu0,self.params.n0 * lam)) + \
-               sum(logpgamma(lam,self.params.a,self.params.b));
+    def p_log_prior_params(self,params):
+        return sum(logpnorm(params.mu,self.params.mu0,self.params.n0 * params.lam)) + \
+               sum(logpgamma(params.lam,self.params.a,self.params.b));
+
+    def p_prior_params(self,params):
+        return exp(self.p_log_prior_params(params))
 
     def sample_posterior(self):
         if self.empty:
@@ -207,38 +211,64 @@ class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
     """
-    def __init__(self,T):
-        # allocation variables for all time steps
-        self.c = zeros(T,dtype=uint16)
-        # death times of allocation variables (assume they don't die until they do)
-        self.d = (T+1) * ones(T,dtype=uint32)
+    def __init__(self,T,copy=None):
+        if copy != None:
+            self.T = copy.T
+            self.c = copy.c.copy()
+            self.d = copy.d.copy()
+            self.K = copy.K
+            self.mstore = copy.mstore.shallow_copy()
+            self.lastspike = copy.lastspike.shallow_copy()
+            self.U = copy.U.shallow_copy()
+            self.birthtime = copy.birthtime.shallow_copy()
+            self.deathtime = copy.deathtime.shallow_copy() 
+        else:
+            self.T = T
+            # allocation variables for all time steps
+            self.c = zeros(T,dtype=uint16)
+            # death times of allocation variables (assume they don't die until they do)
+            self.d = (T+1) * ones(T,dtype=uint32)
+            
+            # current time
+            # p.t = 0;
+            
+            # total number of clusters in this particle up to the current time
+            self.K = 0
+            
+            # column vector containing the sizes of the current non-empty clusters
+            # p.m = zeros(T*Nt,1);
+            
+            # array to store class counts at each time step
+            self.mstore = ArrayOfLists(T)
+            
+            self.lastspike = ArrayOfLists(T)
+            
+            # cell array to store the sampled values of rho across time
+            # self.rhostore = zeros(T);
+            
+            # Parameter values of each cluster 1...K at each time step 1...T
+            # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
+            self.U = ArrayOfLists(T);
+            
+            # vector to store the birth times of clusters
+            self.birthtime = ExtendingList()
+            
+            # vector to store the death times of clusters (0 if not dead)
+            self.deathtime = ExtendingList() 
+
+    def shallow_copy(self):
+        """Make a shallow copy of this particle.
+
+        In essence, copies of lists are created, but the list contents are not
+        copied. This is useful for making copies of particles during
+        resampling, such that the resulting particles share the same history,
+        but can be moved forward independently.
+        """
+        new = Particle(self.T,self)
+        return new
+
         
-        # current time
-        # p.t = 0;
-        
-        # total number of clusters in this particle up to the current time
-        self.K = 0
-        
-        # column vector containing the sizes of the current non-empty clusters
-        # p.m = zeros(T*Nt,1);
-        
-        # array to store class counts at each time step
-        self.mstore = ArrayOfLists(T)
-        
-        self.lastspike = ArrayOfLists(T)
-        
-        # cell array to store the sampled values of rho across time
-        # self.rhostore = zeros(T);
-        
-        # Parameter values of each cluster 1...K at each time step 1...T
-        # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
-        self.U = ArrayOfLists(T);
-        
-        # vector to store the birth times of clusters
-        self.birthtime = ExtendingList()
-        
-        # vector to store the death times of clusters (0 if not dead)
-        self.deathtime = ExtendingList() 
+
 
     def __str__(self):
         out = []

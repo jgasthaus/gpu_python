@@ -6,7 +6,9 @@ import logging
 
 ### RESAMPLING SCHEMES
 def multinomial_resampling(weights):
-    return rmultinomial(weights,len(weights))
+    return (1/ones(len(weights)),
+            counts_to_index(rmultinomial(weights,len(weights)))
+           )
 
 class InferenceParams(object):
     def __init__(self,rho,alpha,p_uniform_deletion):
@@ -34,10 +36,11 @@ class ParticleFilter(Inference):
         self.num_particles = num_particles
         self.resample_fun = resample_fun
         self.params = params
-        self.particles = empty(num_particles,dtype=object)
         self.T = data.shape[1]
+        self.particles = empty(num_particles,dtype=object)
         for i in range(num_particles):
             self.particles[i] = Particle(self.T)
+        self.weights = ones(num_particles)/num_particles
 
     def run(self):
         for t in range(self.T):
@@ -95,7 +98,6 @@ class ParticleFilter(Inference):
                 
                 # compute probability of data point under all old clusters
                 for i in range(Kbefore):
-                    print active
                     isi = self.data_time[t] - p.lastspike.get(t,active[i])
                     p_lik[i] = self.model.p_likelihood(x,p.U.get(t-1,active[i]))
                 
@@ -117,11 +119,10 @@ class ParticleFilter(Inference):
                 if c == Kt:
                     logging.info('Starting new cluster')
                     # update number-of-clusters counts
-                    Kt += 1
                     p.K += 1
                     # set birthtime of cluster K to the current time
                     p.birthtime[Kt] = t
-                    active = hstack((active,Kt-1))
+                    active = hstack((active,Kt))
                     p.mstore.append(t,0)
                     p.lastspike.append(t,0)
                 
@@ -132,81 +133,46 @@ class ParticleFilter(Inference):
                 p.c[t] = active_c
                 p.lastspike.set(t,active_c,self.data_time[t])
                 
-                # %%% sample parameters U for all alive clusters {{{ 
-                # %
-                # % This samples from q(U|...), for each of the three conditions:
-                # %   - new cluster created at this time step
-                # %       - sample from prior updated with the data from this time step
-                # %   - old cluster, and data assigned to it in this time step
-                # %       - sample from distribution given old value and new data
-                # %   - old cluster, but no new data assigned to it
-                # %       - sample from transition kernel
+                ### sample parameters U for all alive clusters {{{ 
+                # 
+                # This samples from q(U|...), for each of the three conditions:
+                #   - new cluster created at this time step
+                #       - sample from prior updated with the data from this time step
+                #   - old cluster, and data assigned to it in this time step
+                #       - sample from distribution given old value and new data
+                #   - old cluster, but no new data assigned to it
+                #       - sample from transition kernel
                 # 
                 # % preallocate vectors to store probabilities for the weight computation
-                # qU_z = ones(Kt - Kbefore,1);
-                # G0 = ones(Kt - Kbefore,1);
-                # pU_U = ones(Kbefore,1);
-                # qU_Uz = ones(Kbefore,1);
-                # 
-                # for i = 1:Kt % for all alive clusters
-                #     cabs = active(i);
-                #     % find associated data points 
-                #     idx = (p.c == cabs) & (data_idx == p.t);
-                #     nk = sum(idx);
-                #     % extract data points
-                #     points = data_full(:,idx);
-                # 
-                #     if i > Kbefore  % cluster newly created at this time step
-                #         p.model = set_data(p.model,points);
-                #         % sample new mean
-                #         new_m = sample_posterior_mean(p.model);
-                #         % sample new precision/covariance
-                #         L = sample_posterior_precision(p.model);
-                #         new_C = inv(L);
-                #         % compute probability of this sample for use in weight
-                #         qU_z(i-Kbefore) = p_posterior_mean(p.model,new_m) .* ...
-                #                           p_posterior_precision(p.model,L);
-                #         % compute probability of this sample under G_0
-                #         G0(i-Kbefore) = p_prior_params(p.model,new_m,L);
-                #     else % old cluster
-                #         old_m = p.U{p.t-1}{cabs}.m;
-                #         old_C = p.U{p.t-1}{cabs}.C;
-                #         if nk > 0 % new data associated with cluster at this time step
-                #              
-                #             % model1 = set_data(p.model,points);
-                #             % 
-                #             % [new_m new_C weight] = sample_Uz(model1,old_m,old_C,p.num_sir_samples);
-                #             % qU_Uz1 = p_walk(model1,new_m,new_C,old_m,old_C) .* weight;
-                #             %     
-                #             % % compute p(U|U_old)
-                #             % pU_U(i) = p_walk(p.model,new_m,new_C,old_m,old_C); 
-                #             % 
-                #             % % compute qU_Uz
-                #             % qU_Uz(i) = qU_Uz1;
-                #             % TODO: Simply propose from p(U|U_old) for now
-                #             [new_m new_C] = walk(p.model,old_m,old_C);
-                #             pU_U(i) = 1;
-                #             qU_Uz(i) = 1;
-                # 
-                #             if pU_U(i) == 0 % DEBUG
-                #                 p.model, new_m, new_C, old_m, old_C
-                #             end
-                #         else % no new data
-                #             % do random walk
-                #             [new_m new_C] = walk(p.model,old_m,old_C);
-                #             pU_U(i) = 1;
-                #             qU_Uz(i) = 1;
-                #         end
-                #     end
-                # 
-                #     % store the newly sampled values
-                #     p.U{p.t}{cabs}.m = new_m;
-                #     p.U{p.t}{cabs}.C = new_C;
-                #     
-                # 
-                # end 
-                # %%% }}}
-                # 
+                #qU_z = ones(Kt - Kbefore,1);
+                #G0 = ones(Kt - Kbefore,1);
+                pU_U = ones(Kbefore)
+                qU_Uz = ones(Kbefore)
+                p.U.copy_list(t-1,t)
+                for i in range(len(active)):  # for all active clusters
+                    cabs = active[i]
+                    # find associated data points 
+                    #idx = logical_and(p.c == cabs) & (data_idx == p.t);
+                    # nk = sum(idx);
+                    # extract data points
+                    # points = data_full(:,idx);
+
+                    if i >= Kbefore:  # cluster newly created at this time step
+                        self.model.set_data(x);
+                        new_params = self.model.sample_posterior()
+                        p.U.append(t,new_params)
+
+                        # compute probability of this sample for use in weight
+                        qU_z = self.model.p_posterior(new_params)
+                        # compute probability of this sample under G_0
+                        G0 = self.model.p_prior_params(new_params)
+                    else:  # old cluster
+                        if cabs == c: # new data associated with cluster at this time step
+                            new_params = self.model.walk(p.U.get(t,cabs))
+                        else: # no new data
+                            new_params = self.model.walk(p.U.get(t,cabs))
+                        p.U.set(t,cabs,new_params) 
+                 
                 # %%% compute incremental weight for this update step {{{ 
                 # %
                 # % The weight is computed from the following components:
@@ -217,6 +183,8 @@ class ParticleFilter(Inference):
                 # %   - prod(qU_Uz)-- q(U|U_old,z); denom. of second line of (9)
                 # 
                 # w_inc = prod(Z_qc).*prod(pU_U)./prod(qU_Uz).*prod(G0)./prod(qU_z);
+                w_inc = Z_qc*G0/qU_z
+                self.weights[n] *= w_inc
                 # 
                 # if isnan(w_inc) % bad weight -- can happen if underflow occurs
                 #     w_inc = 0; % discard the particle by giving it weight 0
@@ -230,11 +198,15 @@ class ParticleFilter(Inference):
                 # p.mstore(:,p.t) = m;
                 # 
                 # %%% }}}
-        
 
-
-
-            # resample
+            ### resample
+            # normalize weights
+            self.weights = self.weights / sum(self.weights)
+            self.weights, resampled_indices = self.resample_fun(self.weights)
+            new_particles = empty(self.num_particles,dtype=object)
+            for i in range(len(resampled_indices)):
+                new_particles[i] = self.particles[resampled_indices[i]].shallow_copy()
+            self.particles = new_particles
 
 class GibbsSampler(Inference):
     def __init__(self,data,model):

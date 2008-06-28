@@ -1,5 +1,5 @@
 import numpy as N
-from numpy import array, exp, log, sqrt, cumsum, empty, pi
+from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32
 from scipy.special import gammaln
 import numpy.random as R
 
@@ -13,6 +13,18 @@ LOG2PI = log(2*pi)
 
 def isarray(a):
     return isinstance(a, N.ndarray)
+
+def counts_to_index(counts):
+    """Transform an array of counts to the corresponding array of indices, 
+    i.e. [2,3,1] -> [0,0,1,1,1,2]
+    """
+    idx = empty(sum(counts),dtype=int32)
+    k = 0
+    for i in range(len(counts)):
+        for j in range(counts[i]):
+            idx[k] = i
+            k += 1
+    return idx
 
 class ArrayOfLists(object):
     def __init__(self,size):
@@ -55,12 +67,21 @@ class ArrayOfLists(object):
         out = []
         for t in range(self.size):
             if self.__array[t] != []:
-                out.append(str(t) + ':\n' + str(self.__array[t]) + '\n')
+                out.append(str(t) + ': ' + str(self.__array[t]) + '\n')
 
         return ''.join(out)
 
     def __repr__(self):
         return self.__str__()
+
+    def shallow_copy(self):
+        """Make a shallow copy of the array and the lists, but not the
+        list contents."""
+        new = ArrayOfLists(self.size)
+        for i in range(self.size):
+            new.set_list(i,self.__array[i][:])
+        return new
+
 
 
 class ExtendingList(list):
@@ -76,12 +97,21 @@ class ExtendingList(list):
                 self.append(self.default())
 
     def __getitem__(self,i):
-        self.__check(i)
-        return list.__getitem__(self,i)
+        if len(self) <= i:
+            return self.default()
+        else:
+            return list.__getitem__(self,i)
 
     def __setitem__(self,i,x):
         self.__check(i)
         list.__setitem__(self,i,x)
+
+    def shallow_copy(self):
+        # FIXME: This may be inefficient
+        new = ExtendingList(self.default)
+        new.extend(self)
+        return new
+
 
 ### Probability distributions 
 # Normal distribution
