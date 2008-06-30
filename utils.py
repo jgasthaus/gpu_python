@@ -2,6 +2,7 @@ import numpy as N
 from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32
 from scipy.special import gammaln
 import numpy.random as R
+import logging
 
 try:
     from scipy.sandbox.montecarlo._intsampler import _intsampler
@@ -13,6 +14,12 @@ LOG2PI = log(2*pi)
 
 def isarray(a):
     return isinstance(a, N.ndarray)
+
+def load_file(fn):
+    logging.info('Loading file ' + str(fn))
+    data = N.loadtxt(fn)
+    logging.info('Read file, size: ' + str(data.shape))
+    return data
 
 def counts_to_index(counts):
     """Transform an array of counts to the corresponding array of indices, 
@@ -26,48 +33,94 @@ def counts_to_index(counts):
             k += 1
     return idx
 
+class FixedSizeStore(object):
+    def __init__(self,size,max_clusters=30,dtype=object,copy=None):
+        if copy != None:
+            self.array = copy.array.copy()
+            self.lengths = copy.lengths.copy()
+            self.size = copy.size
+            self.max_clusters = copy.max_clusters
+            self.dtype = copy.dtype
+        else:
+            self.array = empty((size,max_clusters),dtype=dtype)
+            self.lengths = zeros(size,dtype=int32)
+            self.size = size
+            self.max_clusters = max_clusters
+            self.dtype = dtype
+
+    def get(self,t,i):
+        return self.array[t,i]
+
+    def get_array(self,t):
+        return self.array[t,:].copy()
+        
+    def append(self,t,x):
+        self.array[t,self.lengths[t]] = x
+        self.lengths[t] += 1
+
+    def set(self,t,i,x):
+        self.array[t,i] = x
+    
+    def copy(self,fro,to):
+        self.array[to,:] = self.array[fro,:]
+        self.lengths[to] = self.lengths[fro]
+
+    def shallow_copy(self):
+        return FixedSizeStore(self.size,self.max_clusters,self.dtype,self)
+
+    def __str__(self):
+        return str(self.array) + "\nLengths: " + str(self.lengths)
+
+    __repr__ = __str__
+
 class ArrayOfLists(object):
-    def __init__(self,size):
-        self.__array = empty(size,dtype=object)
-        for t in range(size):
-            self.__array[t] = []
-        self.size = size
+    def __init__(self,size,dtype=None,copy=None):
+        if copy != None:
+            self.size = copy.size
+            self.array = copy.array.copy()
+            for t in range(self.size):
+                self.array[t] = self.array[t][:]
+        else:
+            self.array = empty(size,dtype=object)
+            for t in range(size):
+                self.array[t] = []
+            self.size = size
 
     def get(self,t,i):
         if t < self.size and i < self.len(t):
-            return self.__array[t][i]
+            return self.array[t][i]
         else:
             raise ValueError, 'Index out of bounds t=' + str(t) + ' i=' + str(i)
 
-    def copy_list(self,fro,to):
-        self.__array[to] = self.__array[fro][:]
+    def copy(self,fro,to):
+        self.array[to] = self.array[fro][:]
 
     def get_list(self,t):
-        return self.__array[t]
+        return self.array[t]
 
     def get_array(self,t):
-        return array(self.__array[t])
+        return array(self.array[t])
 
     def set_array(self,t,a):
-        self.__array[t] = a.tolist()
+        self.array[t] = a.tolist()
 
     def set_list(self,t,l):
-        self.__array[t] = l
+        self.array[t] = l
 
     def len(self,t):
-        return len(self.__array[t])
+        return len(self.array[t])
 
     def append(self,t,x):
-        self.__array[t].append(x)
+        self.array[t].append(x)
 
     def set(self,t,i,x):
-        self.__array[t][i] = x
+        self.array[t][i] = x
 
     def __str__(self):
         out = []
         for t in range(self.size):
-            if self.__array[t] != []:
-                out.append(str(t) + ': ' + str(self.__array[t]) + '\n')
+            if self.array[t] != []:
+                out.append(str(t) + ': ' + str(self.array[t]) + '\n')
 
         return ''.join(out)
 
@@ -77,12 +130,10 @@ class ArrayOfLists(object):
     def shallow_copy(self):
         """Make a shallow copy of the array and the lists, but not the
         list contents."""
-        new = ArrayOfLists(self.size)
-        for i in range(self.size):
-            new.set_list(i,self.__array[i][:])
+        new = ArrayOfLists(self.size,self)
         return new
 
-
+StorageType = FixedSizeStore
 
 class ExtendingList(list):
     """A list type that grows if the given index is out of bounds and fills the

@@ -47,10 +47,7 @@ class DiagonalConjugate(Model):
     
     def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernel_params=(0.001,0.001)):
         self.params = hyper_params
-        if len(self.params.b.shape) > 0:
-            self.dims = self.params.b.shape[0]
-        else:
-            self.dims = 1
+        self.dims = self.params.dims
         self.empty = True
         self.kernel = kernelClass(self,kernel_params)
         self.walk = self.kernel.walk
@@ -184,11 +181,28 @@ class DiagonalConjugate(Model):
         return DiagonalConjugate.Storage(mu,lam)
     
     class HyperParams(object):
-        def __init__(self,a,b,mu0,n0):
-            self.a = array(a,copy=False)
-            self.b = array(b,copy=False)
-            self.mu0 = array(mu0)
+        def __init__(self,a,b,mu0,n0,dims=None):
+            if dims != None:
+                self.a = ones(dims) * a
+                self.b = ones(dims) * b
+                self.mu0 = ones(dims) * mu0
+            else:
+                self.a = a
+                self.b = b
+                self.mu0 = mu0
             self.n0 = n0
+            if self.a.shape != self.b.shape:
+                raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
+                    "b.shape: " + str(b.shape)
+            elif self.a.shape != self.mu0.shape:
+                raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
+                    "mu0.shape: " + str(mu0.shape)
+            if len(self.a.shape)!= 0:
+                self.dims = self.a.shape[0]
+            else: 
+                self.dims = 1
+
+
         def __str__(self):
             out = ['Model hyperparameters:\n']
             out.append('a: ' + str(self.a) + '\n')
@@ -239,16 +253,16 @@ class Particle(object):
             # p.m = zeros(T*Nt,1);
             
             # array to store class counts at each time step
-            self.mstore = ArrayOfLists(T)
+            self.mstore = StorageType(T,dtype=int32)
             
-            self.lastspike = ArrayOfLists(T)
+            self.lastspike = StorageType(T,dtype=float64)
             
             # cell array to store the sampled values of rho across time
             # self.rhostore = zeros(T);
             
             # Parameter values of each cluster 1...K at each time step 1...T
             # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
-            self.U = ArrayOfLists(T);
+            self.U = StorageType(T,dtype=object);
             
             # vector to store the birth times of clusters
             self.birthtime = ExtendingList()

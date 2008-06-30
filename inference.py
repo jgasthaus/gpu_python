@@ -3,6 +3,7 @@ from model import *
 from numpy import *
 from numpy.random import rand, random_sample
 import logging
+import time
 
 ### RESAMPLING SCHEMES
 def multinomial_resampling(weights):
@@ -11,10 +12,11 @@ def multinomial_resampling(weights):
            )
 
 class InferenceParams(object):
-    def __init__(self,rho,alpha,p_uniform_deletion):
+    def __init__(self,rho,alpha,p_uniform_deletion,r_abs):
         self.rho = rho
         self.alpha = alpha
         self.p_uniform_deletion = p_uniform_deletion
+        self.r_abs = r_abs
 
     def __str__(self):
         out = []
@@ -22,6 +24,7 @@ class InferenceParams(object):
         out.append('rho: ' + str(self.rho))
         out.append('alpha: ' + str(self.alpha))
         out.append('p_uniform_deletion: ' + str(self.p_uniform_deletion))
+        out.append('r_abs: ' + str(self.r_abs))
         return '\n'.join(out)
 
 class Inference:
@@ -41,9 +44,20 @@ class ParticleFilter(Inference):
         for i in range(num_particles):
             self.particles[i] = Particle(self.T)
         self.weights = ones(num_particles)/num_particles
+        self.__check()
+
+    def __check(self):
+        """Check whether dimensions of parameters and data are consistent."""
+        if not len(self.data.shape) == 2:
+            raise ValueError, \
+                  "Data should be a 2D array with data points as columns!"
+        if not self.model.dims == self.data.shape[0]:
+            raise ValueError, "Model dimension does not match data dimension: "+\
+                    str(self.model.dims) + " != " + str(self.data.shape[0])
 
     def run(self):
         for t in range(self.T):
+            start_t = time.time()
             logging.info('t = ' + str(t) + '/' + str(self.T))
             x = self.data[:,t]
             tau = self.data_time[t]
@@ -52,8 +66,8 @@ class ParticleFilter(Inference):
                 p = self.particles[n]
                 # perform deletion step / compute new cluster sizes {{{
                 if t > 0:
-                    p.mstore.copy_list(t-1,t)
-                    p.lastspike.copy_list(t-1,t)
+                    p.mstore.copy(t-1,t)
+                    p.lastspike.copy(t-1,t)
                     m = p.mstore.get_array(t)
                     old_zero = m == 0;
                     if rand() < self.params.p_uniform_deletion: # uniform deletion
@@ -62,13 +76,15 @@ class ParticleFilter(Inference):
                         # delete from alive allocations with prob. 1-p.rho
                         idx = logical_and(logical_and(U<1-self.params.rho,p.d>=t), p.c>0)
                     else: # size-biased deletion
-                        i = rdiscrete(m/float(sum(m)),1);
+                        i = rdiscrete(m/float(sum(m)),1)
                         idx = logical_and(logical_and(p.c == i, p.d>=t), p.c > 0)
                 
                     p.d[idx] = t
                      # compute current alive cluster sizes p.m; TODO: vectorize this?
                     for k  in range(p.K):
-                        m[k] = sum(logical_and(p.c == k,p.d>t))
+                        nm = sum(logical_and(p.c[0:t] == k,p.d[0:t]>t))
+                        m[k] = nm
+                        p.mstore.set(t,k,nm)
                 
                     new_zero = m == 0;
                     died = logical_and(new_zero,logical_not(old_zero)).nonzero()[0]
@@ -83,7 +99,6 @@ class ParticleFilter(Inference):
                 # generate a new class).
                 active_idx = m>0
                 active = where(active_idx)[0]
-                 
                 # number of clusters before we see new data
                 Kbefore = len(active)
                  
@@ -99,6 +114,8 @@ class ParticleFilter(Inference):
                 # compute probability of data point under all old clusters
                 for i in range(Kbefore):
                     isi = self.data_time[t] - p.lastspike.get(t,active[i])
+                    if isi < self.params.r_abs:
+                        p_crp[i] = 0
                     p_lik[i] = self.model.p_likelihood(x,p.U.get(t-1,active[i]))
                 
                 # likelihood for new cluster
@@ -111,13 +128,11 @@ class ParticleFilter(Inference):
                 Z_qc = sum(q)
                 q = q / Z_qc
                 
-                logging.debug('q(c|z): ' + str(q))
                 # sample a new label from the discrete distribution q
                 c = rdiscrete(q,1)
                 
                 # update data structures if we propose a new cluster
                 if c == Kt:
-                    logging.info('Starting new cluster')
                     # update number-of-clusters counts
                     p.K += 1
                     # set birthtime of cluster K to the current time
@@ -148,7 +163,7 @@ class ParticleFilter(Inference):
                 #G0 = ones(Kt - Kbefore,1);
                 pU_U = ones(Kbefore)
                 qU_Uz = ones(Kbefore)
-                p.U.copy_list(t-1,t)
+                p.U.copy(t-1,t)
                 for i in range(len(active)):  # for all active clusters
                     cabs = active[i]
                     # find associated data points 
@@ -161,7 +176,6 @@ class ParticleFilter(Inference):
                         self.model.set_data(x);
                         new_params = self.model.sample_posterior()
                         p.U.append(t,new_params)
-
                         # compute probability of this sample for use in weight
                         qU_z = self.model.p_posterior(new_params)
                         # compute probability of this sample under G_0
@@ -207,6 +221,17 @@ class ParticleFilter(Inference):
             for i in range(len(resampled_indices)):
                 new_particles[i] = self.particles[resampled_indices[i]].shallow_copy()
             self.particles = new_particles
+            end_t = time.time()
+            elapsed = end_t - start_t
+            remaining = elapsed * (self.T-t)
+            logging.info("One step required " + str(elapsed) + " seconds, " +
+                    str(remaining) + " secs remaining.")
+    
+    def get_labeling(self):
+        labeling = empty((self.num_particles,self.T),dtype=int32)
+        for p in range(self.num_particles):
+            labeling[p,:] = self.particles.c
+        return labeling
 
 class GibbsSampler(Inference):
     def __init__(self,data,model):
