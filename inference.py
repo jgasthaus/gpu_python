@@ -102,11 +102,9 @@ class ParticleFilter(Inference):
                 # generate a new class).
                 active_idx = m>0
                 active = where(active_idx)[0]
+                
                 # number of clusters before we see new data
-                Kbefore = len(active)
-                 
-                # current number of active clusters
-                Kt = Kbefore
+                Kt = len(active)
                 
                 # Generalized Poly Urn / CRP
                 p_crp = hstack((m[active_idx],self.params.alpha))
@@ -115,7 +113,7 @@ class ParticleFilter(Inference):
                 p_lik = zeros(Kt+1);
                 
                 # compute probability of data point under all old clusters
-                for i in range(Kbefore):
+                for i in range(Kt):
                     isi = self.data_time[t] - p.lastspike.get(t,active[i])
                     if isi < self.params.r_abs:
                         p_crp[i] = 0
@@ -146,7 +144,6 @@ class ParticleFilter(Inference):
                     # update number-of-clusters counts
                     p.K += 1
                 
-                # increment old cluster size
                 active_c = active[c]
                 p.mstore.set(t,active_c,p.mstore.get(t,active_c)+1)
                 # assign data point to cluster
@@ -162,21 +159,12 @@ class ParticleFilter(Inference):
                 #   - old cluster, but no new data assigned to it
                 #       - sample from transition kernel
                 # 
-                # % preallocate vectors to store probabilities for the weight computation
-                #qU_z = ones(Kt - Kbefore,1);
-                #G0 = ones(Kt - Kbefore,1);
-                pU_U = ones(Kbefore)
-                qU_Uz = ones(Kbefore)
+                pU_U = ones(Kt)
+                qU_Uz = ones(Kt)
                 p.U.copy(t-1,t)
                 for i in range(len(active)):  # for all active clusters
                     cabs = active[i]
-                    # find associated data points 
-                    #idx = logical_and(p.c == cabs) & (data_idx == p.t);
-                    # nk = sum(idx);
-                    # extract data points
-                    # points = data_full(:,idx);
-
-                    if i >= Kbefore:  # cluster newly created at this time step
+                    if i >= Kt:  # cluster newly created at this time step
                         new_params = self.model.sample_posterior()
                         p.U.append(t,new_params)
                         # compute probability of this sample for use in weight
@@ -206,15 +194,6 @@ class ParticleFilter(Inference):
                 # if isnan(w_inc) % bad weight -- can happen if underflow occurs
                 #     w_inc = 0; % discard the particle by giving it weight 0
                 # end
-                # 
-                # %%% }}}
-                # 
-                # %%%  store values of p.rho {{{
-                # p.rhostore(p.t) = p.rho;
-                # 
-                # p.mstore(:,p.t) = m;
-                # 
-                # %%% }}}
 
             ### resample
             # normalize weights
