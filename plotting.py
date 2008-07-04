@@ -6,7 +6,7 @@ import matplotlib.cm as cm
 from matplotlib.colors import no_norm
 from numpy import *
 
-markers = ['s','o','^','>' ,'v' ,'<' ,'d' ,'p' ,'h' ,'8' ,'+' ,'x']
+markers = ['+','x','o','d','^','>' ,'v' ,'<' ,'s','p' ,'h' ,'8']
 
 def plot_scatter_2d(data,labels):
     unique_labels = unique(labels)
@@ -20,6 +20,6 @@ def plot_scatter_2d(data,labels):
                 c=colors,
                 cmap=matplotlib.cm.jet,
                 norm=no_norm(),
-                linewidths=(0,)
+                linewidths=(0.3,)
                )
 
