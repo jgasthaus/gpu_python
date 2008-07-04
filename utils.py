@@ -34,7 +34,7 @@ def counts_to_index(counts):
     return idx
 
 class FixedSizeStore(object):
-    def __init__(self,size,max_clusters=30,dtype=object,copy=None):
+    def __init__(self,size,max_clusters=100,dtype=object,copy=None):
         if copy != None:
             self.array = copy.array.copy()
             self.lengths = copy.lengths.copy()
@@ -42,7 +42,7 @@ class FixedSizeStore(object):
             self.max_clusters = copy.max_clusters
             self.dtype = copy.dtype
         else:
-            self.array = empty((size,max_clusters),dtype=dtype)
+            self.array = zeros((size,max_clusters),dtype=dtype)
             self.lengths = zeros(size,dtype=int32)
             self.size = size
             self.max_clusters = max_clusters
@@ -78,6 +78,7 @@ class ArrayOfLists(object):
         if copy != None:
             self.size = copy.size
             self.array = copy.array.copy()
+            self.dtype = copy.dtype
             for t in range(self.size):
                 self.array[t] = self.array[t][:]
         else:
@@ -85,6 +86,7 @@ class ArrayOfLists(object):
             for t in range(size):
                 self.array[t] = []
             self.size = size
+            self.dtype = dtype
 
     def get(self,t,i):
         if t < self.size and i < self.len(t):
@@ -130,10 +132,11 @@ class ArrayOfLists(object):
     def shallow_copy(self):
         """Make a shallow copy of the array and the lists, but not the
         list contents."""
-        new = ArrayOfLists(self.size,self)
+        new = ArrayOfLists(self.size,self.dtype,self)
         return new
 
 StorageType = FixedSizeStore
+#StorageType = ArrayOfLists
 
 class ExtendingList(list):
     """A list type that grows if the given index is out of bounds and fills the
@@ -195,7 +198,7 @@ def pstudent(x, mu, lam, alpha):
     
 def rstudent(mu, lam, alpha):
     X = R.chisquare(alpha, mu.shape);
-    Z = R.standard_nomal(mu.shape);
+    Z = R.standard_normal(mu.shape);
     return mu + Z*sqrt(alpha/X)/sqrt(lam);
     
 # Gamma distribution

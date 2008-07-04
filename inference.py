@@ -61,6 +61,9 @@ class ParticleFilter(Inference):
             logging.info('t = ' + str(t) + '/' + str(self.T))
             x = self.data[:,t]
             tau = self.data_time[t]
+            # the probability under the prior is the same for all particles
+            p_prior = self.model.p_prior(x)
+            self.model.set_data(x);
             # move particles forward
             for n in range(self.num_particles):
                 p = self.particles[n]
@@ -119,8 +122,10 @@ class ParticleFilter(Inference):
                     p_lik[i] = self.model.p_likelihood(x,p.U.get(t-1,active[i]))
                 
                 # likelihood for new cluster
-                p_lik[Kt] = self.model.p_prior(x)
-                
+                p_lik[Kt] = p_prior
+                logging.debug("x: " + str(x))
+                logging.debug("p_lik: " + str(p_lik)) 
+                logging.debug("p_crp: " + str(p_crp/sum(p_crp)))
                 # propsal distribution: CRP x likelihood
                 q = p_crp * p_lik
                 
@@ -133,13 +138,13 @@ class ParticleFilter(Inference):
                 
                 # update data structures if we propose a new cluster
                 if c == Kt:
-                    # update number-of-clusters counts
-                    p.K += 1
                     # set birthtime of cluster K to the current time
-                    p.birthtime[Kt] = t
-                    active = hstack((active,Kt))
+                    p.birthtime[p.K] = t
+                    active = hstack((active,p.K))
                     p.mstore.append(t,0)
                     p.lastspike.append(t,0)
+                    # update number-of-clusters counts
+                    p.K += 1
                 
                 # increment old cluster size
                 active_c = active[c]
@@ -147,7 +152,6 @@ class ParticleFilter(Inference):
                 # assign data point to cluster
                 p.c[t] = active_c
                 p.lastspike.set(t,active_c,self.data_time[t])
-                
                 ### sample parameters U for all alive clusters {{{ 
                 # 
                 # This samples from q(U|...), for each of the three conditions:
@@ -173,7 +177,6 @@ class ParticleFilter(Inference):
                     # points = data_full(:,idx);
 
                     if i >= Kbefore:  # cluster newly created at this time step
-                        self.model.set_data(x);
                         new_params = self.model.sample_posterior()
                         p.U.append(t,new_params)
                         # compute probability of this sample for use in weight
@@ -186,7 +189,7 @@ class ParticleFilter(Inference):
                         else: # no new data
                             new_params = self.model.walk(p.U.get(t,cabs))
                         p.U.set(t,cabs,new_params) 
-                 
+                        
                 # %%% compute incremental weight for this update step {{{ 
                 # %
                 # % The weight is computed from the following components:
@@ -216,21 +219,31 @@ class ParticleFilter(Inference):
             ### resample
             # normalize weights
             self.weights = self.weights / sum(self.weights)
+            Neff = 1/sum(self.weights**2)
             self.weights, resampled_indices = self.resample_fun(self.weights)
             new_particles = empty(self.num_particles,dtype=object)
+            used = set()
             for i in range(len(resampled_indices)):
-                new_particles[i] = self.particles[resampled_indices[i]].shallow_copy()
+                j = resampled_indices[i]
+                if j in used:
+                    new_particles[i] = self.particles[j].shallow_copy()
+                else:
+                    new_particles[i] = self.particles[j]
+                    used.add(j)
             self.particles = new_particles
+            logging.info("Effective sample size: " + str(Neff))
             end_t = time.time()
             elapsed = end_t - start_t
             remaining = elapsed * (self.T-t)
             logging.info("One step required " + str(elapsed) + " seconds, " +
                     str(remaining) + " secs remaining.")
+            logging.debug(str(self.particles[0].mstore.get_array(t)))
+            logging.debug(self.particles[0].U.get_array(t))
     
     def get_labeling(self):
         labeling = empty((self.num_particles,self.T),dtype=int32)
         for p in range(self.num_particles):
-            labeling[p,:] = self.particles.c
+            labeling[p,:] = self.particles[p].c
         return labeling
 
 class GibbsSampler(Inference):

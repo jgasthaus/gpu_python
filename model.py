@@ -45,7 +45,7 @@ class Model(object):
 
 class DiagonalConjugate(Model):
     
-    def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernel_params=(0.001,0.001)):
+    def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernel_params=(0.1,0.001)):
         self.params = hyper_params
         self.dims = self.params.dims
         self.empty = True
@@ -57,11 +57,10 @@ class DiagonalConjugate(Model):
         #     self.empty = True
         # else:
         #     self.empty = False;
-        if len(data.shape) == 1:
+        if len(data.shape) <= 1:
             # just one data point
-            
             self.mean = data
-            self.nvar =  zeros(data.shape)
+            self.nvar =  zeros_like(data)
             self.nk = 1
             self.nn = self.params.n0 + 1
             self.mun = (self.params.n0 * self.params.mu0 + self.mean)/self.nn
@@ -78,6 +77,7 @@ class DiagonalConjugate(Model):
             self.bn = self.params.b + 0.5*self.nvar + 0.5/self.nn*self.nk*self.params.n0* \
                         (self.params.mu0 - self.mean)**2;
             self.ibn = 1/self.bn;
+        self.empty = False
 
     def p_log_likelihood(self,x,params):
         """Compute log p(x|params)"""
@@ -106,7 +106,7 @@ class DiagonalConjugate(Model):
         if self.empty:
             p = 0;
         else:
-            p = sum(logpstudent(x,self.mun,
+            p = sum(logpstudent(mu,self.mun,
                                 self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
                                 2*self.params.a+self.nk));
         return p
@@ -278,8 +278,7 @@ class Particle(object):
         resampling, such that the resulting particles share the same history,
         but can be moved forward independently.
         """
-        new = Particle(self.T,self)
-        return new
+        return Particle(self.T,self)
 
         
 
