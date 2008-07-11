@@ -108,6 +108,7 @@ class ParticleFilter(Inference):
                 
                 # Generalized Poly Urn / CRP
                 p_crp = hstack((m[active_idx],self.params.alpha))
+                p_crp = p_crp/sum(p_crp)
                 
                 # Vector for storing the likelihood values
                 p_lik = zeros(Kt+1);
@@ -128,12 +129,11 @@ class ParticleFilter(Inference):
                 q = p_crp * p_lik
                 
                 # normalize to get a proper distribution
-                Z_qc = sum(q)
-                q = q / Z_qc
+                q = q / sum(q)
                 
                 # sample a new label from the discrete distribution q
-                c = rdiscrete(q,1)
-                
+                c = rdiscrete(q,1)[0]
+                Z_qc = p_crp[c]/q[c]
                 # update data structures if we propose a new cluster
                 if c == Kt:
                     # set birthtime of cluster K to the current time
@@ -143,7 +143,6 @@ class ParticleFilter(Inference):
                     p.lastspike.append(t,0)
                     # update number-of-clusters counts
                     p.K += 1
-                
                 active_c = active[c]
                 p.mstore.set(t,active_c,p.mstore.get(t,active_c)+1)
                 # assign data point to cluster
@@ -188,7 +187,9 @@ class ParticleFilter(Inference):
                 # %   - prod(qU_Uz)-- q(U|U_old,z); denom. of second line of (9)
                 # 
                 # w_inc = prod(Z_qc).*prod(pU_U)./prod(qU_Uz).*prod(G0)./prod(qU_z);
-                w_inc = Z_qc*G0/qU_z
+                # compute probability of current data point under new parameters
+                pz_U = self.model.p_likelihood(x,p.U.get(t,active_c))
+                w_inc = pz_U*Z_qc*G0/qU_z
                 self.weights[n] *= w_inc
                 # 
                 # if isnan(w_inc) % bad weight -- can happen if underflow occurs
