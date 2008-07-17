@@ -33,23 +33,23 @@ class MetropolisWalk(TransitionKernel):
                 n_lam = params.lam
         
         # Metropolis update rule
-        p_new = exp(self.model.p_log_prior_params(params))
-        
+        new_params = self.model.get_storage(n_mu,n_lam)
+        p_new = exp(self.model.p_log_prior_params(new_params))
+        # print p_new,p_old,p_new/p_old      
         if R.rand() > p_new/p_old: # not accepted -> keep old values
-            n_mu = mu
-            n_lam = lam
-        return self.model.get_storage(n_mu,n_lam)
+            new_params = params
+        return new_params
 
 class Model(object):
     pass
 
 class DiagonalConjugate(Model):
     
-    def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernel_params=(0.1,0.001)):
+    def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernelParams=(0.1,0.001)):
         self.params = hyper_params
         self.dims = self.params.dims
         self.empty = True
-        self.kernel = kernelClass(self,kernel_params)
+        self.kernel = kernelClass(self,kernelParams)
         self.walk = self.kernel.walk
 
     def set_data(self,data):
