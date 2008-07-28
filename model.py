@@ -239,7 +239,7 @@ class Particle(object):
         else:
             self.T = T
             # allocation variables for all time steps
-            self.c = zeros(T,dtype=uint16)
+            self.c = -1*ones(T,dtype=int16)
             # death times of allocation variables (assume they don't die until they do)
             self.d = (T+1) * ones(T,dtype=uint32)
             

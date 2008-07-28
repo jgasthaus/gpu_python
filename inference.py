@@ -77,10 +77,11 @@ class ParticleFilter(Inference):
                         # TODO: Speed this up by sampling only from surviving allocations
                         U = random_sample(p.c.shape);
                         # delete from alive allocations with prob. 1-p.rho
-                        idx = logical_and(logical_and(U<1-self.params.rho,p.d>=t), p.c>0)
+                        # We assume that for non-assigned x we have c<0
+                        idx = logical_and(logical_and(U<1-self.params.rho,p.d>=t), p.c>=0)
                     else: # size-biased deletion
                         i = rdiscrete(m/float(sum(m)),1)
-                        idx = logical_and(logical_and(p.c == i, p.d>=t), p.c > 0)
+                        idx = logical_and(logical_and(p.c == i, p.d>=t), p.c >= 0)
                 
                     p.d[idx] = t
                      # compute current alive cluster sizes p.m; TODO: vectorize this?
