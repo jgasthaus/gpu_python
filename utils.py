@@ -73,6 +73,45 @@ class FixedSizeStore(object):
 
     __repr__ = __str__
 
+class FixedSizeStoreRing(object):
+    def __init__(self,size,max_clusters=100,dtype=object,copy=None):
+        if copy != None:
+            self.array = copy.array.copy()
+            self.lengths = copy.lengths
+            self.size = copy.size
+            self.max_clusters = copy.max_clusters
+            self.dtype = copy.dtype
+        else:
+            self.array = zeros(max_clusters,dtype=dtype)
+            self.lengths = 0
+            self.size = size
+            self.max_clusters = max_clusters
+            self.dtype = dtype
+    
+    def get(self,t,i):
+        return self.array[i]
+
+    def get_array(self,t):
+        return self.array[:].copy()
+        
+    def append(self,t,x):
+        self.array[self.lengths] = x
+        self.lengths += 1
+
+    def set(self,t,i,x):
+        self.array[i] = x
+    
+    def copy(self,fro,to):
+        pass
+
+    def shallow_copy(self):
+        return FixedSizeStoreRing(self.size,self.max_clusters,self.dtype,self)
+
+    def __str__(self):
+        return str(self.array) + "\nLengths: " + str(self.lengths)
+
+    __repr__ = __str__
+
 class ArrayOfLists(object):
     def __init__(self,size,dtype=None,copy=None):
         if copy != None:
@@ -93,7 +132,7 @@ class ArrayOfLists(object):
             return self.array[t][i]
         else:
             raise ValueError, 'Index out of bounds t=' + str(t) + ' i=' + str(i)
-
+    
     def copy(self,fro,to):
         self.array[to] = self.array[fro][:]
 
@@ -135,7 +174,7 @@ class ArrayOfLists(object):
         new = ArrayOfLists(self.size,self.dtype,self)
         return new
 
-StorageType = FixedSizeStore
+StorageType = FixedSizeStoreRing
 #StorageType = ArrayOfLists
 
 class ExtendingList(list):
