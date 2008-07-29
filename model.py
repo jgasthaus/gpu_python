@@ -12,6 +12,11 @@ class TransitionKernel(object):
 
     def walk(self,params,tau=None,p_old=None):
        raise NotImplementedError 
+    
+    def walk_with_data(self,params,data,tau=None):
+        """Sample from the walk given some observersion. This fallback 
+        implementation just samples from the walk ignoring the data.""" 
+        return self.walk(params,tau)
 
 class MetropolisWalk(TransitionKernel):
 
@@ -40,10 +45,12 @@ class MetropolisWalk(TransitionKernel):
             new_params = params
         return new_params
 
+
 class CaronIndependent(TransitionKernel):
 
     def __init__(self,model,params):
         TransitionKernel.__init__(self,model,params)
+        self.num_aux = params[0]
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -55,7 +62,13 @@ class CaronIndependent(TransitionKernel):
         self.mu_up3 = 2*alpha + 1
         self.gam_up = alpha+0.5
 
-    def walk(self,params,tau=None,p_old=None):
+    def walk(self,params,tau=None):
+        if self.num_aux == 1:
+            return self.__fast_walk(params,tau)
+        else:
+            return self.__general_walk(params,data=None,tau=tau)
+
+    def __fast_walk(self,params,tau=None,p_old=None):
         # first, sample auxiliary variables
         z = rnorm(params.mu,params.lam)
         # then, sample new parameters
@@ -63,7 +76,43 @@ class CaronIndependent(TransitionKernel):
         n_mu = rstudent(self.mu_up1+z/self.np,self.mu_up2/bstar,self.mu_up3)
         n_lam = rgamma(self.gam_up,bstar)
         return self.model.get_storage(n_mu,n_lam)
-        
+
+    def __general_walk(self,params,data=None,tau=None):
+        """General version of the random walk allowing for an arbitrary
+        number of auxiliary variables and/or data points.
+        """
+        if self.num_aux == 1 and data==None:
+            return self.__fast_walk(params,tau)
+
+        n0 = self.model.params.n0
+        mu0 = self.model.params.mu0
+        alpha = self.model.params.a
+        beta = self.model.params.b
+        if data != None:
+            N = self.num_aux + 1
+        else:
+            N = self.num_aux
+        aux_vars = zeros((mu0.shape[0],N))
+        for i in range(self.num_aux):
+            # sample auxiliary variables
+            aux_vars[:,i] = rnorm(params.mu,params.lam/self.params[1])
+        if data != None:
+            aux_vars[:,N-1] = data
+        data_mean = mean(aux_vars,1)
+        # make data_mean a rank-2 D-by-1 array so we can use broadcasting
+        data_mean.shape = (data_mean.shape[0],1)
+        nvar = sum((aux_vars-data_mean)**2,1)
+        data_mean.shape = (data_mean.shape[0],)
+        #print aux_vars,data_mean,nvar
+        mu_star = (n0*mu0 + N*data_mean)/(n0+N)
+        beta_star = beta + 0.5*nvar + (N*n0*(mu0-data_mean)**2)/(2*(n0+N))
+        n_mu = rstudent(mu_star,(N*n0)*(alpha+0.5*N)/beta_star,2*alpha + N)
+        n_lam = rgamma(alpha+0.5*N,beta_star)
+        return self.model.get_storage(n_mu,n_lam)
+    
+    def walk_with_data(self,params,data,tau=None):
+        return self.__general_walk(params,data,tau)
+
 
 
 
@@ -78,6 +127,7 @@ class DiagonalConjugate(Model):
         self.empty = True
         self.kernel = kernelClass(self,kernelParams)
         self.walk = self.kernel.walk
+        self.walk_with_data = self.kernel.walk_with_data
 
     def set_data(self,data):
         # if data.shape[1]!=0:

@@ -176,7 +176,7 @@ class ParticleFilter(Inference):
                         G0 = self.model.p_prior_params(new_params)
                     else:  # old cluster
                         if cabs == c: # new data associated with cluster at this time step
-                            new_params = self.model.walk(p.U.get(t,cabs))
+                            new_params = self.model.walk_with_data(p.U.get(t,cabs),x)
                         else: # no new data
                             new_params = self.model.walk(p.U.get(t,cabs))
                         p.U.set(t,cabs,new_params) 
