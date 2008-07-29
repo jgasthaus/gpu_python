@@ -7,10 +7,10 @@ class TransitionKernel(object):
         self.params = params
         self.model = model
 
-    def p_walk(self,old_mu,old_lam,mu,lam):
+    def p_walk(self,old_mu,old_lam,mu,lam,tau=None):
        raise NotImplementedError 
 
-    def walk(self,mu,lam,tau=None,p_old=None):
+    def walk(self,params,tau=None,p_old=None):
        raise NotImplementedError 
 
 class MetropolisWalk(TransitionKernel):
@@ -39,6 +39,33 @@ class MetropolisWalk(TransitionKernel):
         if R.rand() > p_new/p_old: # not accepted -> keep old values
             new_params = params
         return new_params
+
+class CaronIndependent(TransitionKernel):
+
+    def __init__(self,model,params):
+        TransitionKernel.__init__(self,model,params)
+        n0 = self.model.params.n0
+        mu0 = self.model.params.mu0
+        alpha = self.model.params.a
+        beta = self.model.params.b
+        self.beta_up = n0/(2*(n0+1))
+        self.np = n0 + 1
+        self.mu_up1 = (n0*mu0)/self.np
+        self.mu_up2 = self.np * (alpha+0.5)
+        self.mu_up3 = 2*alpha + 1
+        self.gam_up = alpha+0.5
+
+    def walk(self,params,tau=None,p_old=None):
+        # first, sample auxiliary variables
+        z = rnorm(params.mu,params.lam)
+        # then, sample new parameters
+        bstar = self.model.params.b + ((self.model.params.mu0-z)**2)*self.beta_up
+        n_mu = rstudent(self.mu_up1+z/self.np,self.mu_up2/bstar,self.mu_up3)
+        n_lam = rgamma(self.gam_up,bstar)
+        return self.model.get_storage(n_mu,n_lam)
+        
+
+
 
 class Model(object):
     pass
