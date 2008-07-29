@@ -1,4 +1,4 @@
-from utils import rdiscrete
+from utils import *
 from model import *
 from numpy import *
 from numpy.random import rand, random_sample
@@ -32,6 +32,7 @@ class Inference:
 
 class ParticleFilter(Inference):
     def __init__(self,model,data,data_time,params,num_particles,
+                 storage_class=FixedSizeStoreRing,
                  resample_fun=multinomial_resampling):
         self.model = model
         self.data = data
@@ -42,7 +43,7 @@ class ParticleFilter(Inference):
         self.T = data.shape[1]
         self.particles = empty(num_particles,dtype=object)
         for i in range(num_particles):
-            self.particles[i] = Particle(self.T)
+            self.particles[i] = Particle(self.T,None,storage_class)
         self.weights = ones(num_particles)/num_particles
         self.__check()
 

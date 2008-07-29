@@ -225,7 +225,7 @@ class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
     """
-    def __init__(self,T,copy=None):
+    def __init__(self,T,copy=None,storage_class=FixedSizeStoreRing):
         if copy != None:
             self.T = copy.T
             self.c = copy.c.copy()
@@ -235,9 +235,11 @@ class Particle(object):
             self.lastspike = copy.lastspike.shallow_copy()
             self.U = copy.U.shallow_copy()
             self.birthtime = copy.birthtime.shallow_copy()
-            self.deathtime = copy.deathtime.shallow_copy() 
+            self.deathtime = copy.deathtime.shallow_copy()
+            self.storage_class = copy.storage_class
         else:
             self.T = T
+            self.storage_class = storage_class
             # allocation variables for all time steps
             self.c = -1*ones(T,dtype=int16)
             # death times of allocation variables (assume they don't die until they do)
@@ -253,16 +255,16 @@ class Particle(object):
             # p.m = zeros(T*Nt,1);
             
             # array to store class counts at each time step
-            self.mstore = StorageType(T,dtype=int32)
+            self.mstore = self.storage_class(T,dtype=int32)
             
-            self.lastspike = StorageType(T,dtype=float64)
+            self.lastspike = self.storage_class(T,dtype=float64)
             
             # cell array to store the sampled values of rho across time
             # self.rhostore = zeros(T);
             
             # Parameter values of each cluster 1...K at each time step 1...T
             # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
-            self.U = StorageType(T,dtype=object);
+            self.U = self.storage_class(T,dtype=object);
             
             # vector to store the birth times of clusters
             self.birthtime = ExtendingList()
