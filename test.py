@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import numpy.random as R
 import numpy as N
 import pylab as P
@@ -14,6 +15,9 @@ import preprocessing
 from plotting import *
 
 N.set_printoptions(edgeitems=30)
+
+# seed the RNG (this 
+R.seed(24)
 
 def test():
     a = N.arange(-5,5,0.1)
@@ -106,7 +110,6 @@ def main():
             inference_params,
             options.num_particles
             )
-    #cProfile.run("pf.run()")
     pf.run()
     labeling = pf.get_labeling()
     N.savetxt('labeling.txt',labeling)
@@ -114,4 +117,5 @@ def main():
     plot_result(data,labeling[0,:])
 
 if __name__ == '__main__':
+    #cProfile.run("main()")
     main()
