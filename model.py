@@ -10,12 +10,12 @@ class TransitionKernel(object):
     def p_walk(self,old_mu,old_lam,mu,lam):
        raise NotImplementedError 
 
-    def walk(self,mu,lam,p_old=None):
+    def walk(self,mu,lam,tau=None,p_old=None):
        raise NotImplementedError 
 
 class MetropolisWalk(TransitionKernel):
 
-    def walk(self,params,p_old=None):
+    def walk(self,params,tau=None,p_old=None):
         if p_old == None:
             p_old = exp(self.model.p_log_prior_params(params));
         
@@ -156,6 +156,7 @@ class DiagonalConjugate(Model):
     def sample_Uz(self,mu,lam,data,num_sir_samples=10):
         """Sample from p(U|U_old,z)=p(U|U_old)p(z|U)/Z."""
         if self.empty:
+            #TODO: Dependence of walk on tau
             return (self.walk(mu,lam),1)
 
         # SIR: sample from P(U|U_old), compute weights P(x|U), then 
@@ -165,7 +166,8 @@ class DiagonalConjugate(Model):
         sir_weights = zeros(num_sir_samples)
         p_old = self.p_log_prior_params(mu,lam);
         for s in range(num_sir_samples):
-            tmp = walk(mu,lam,p_old);
+            # TODO: dependence of walk on tau
+            tmp = walk(mu,lam,p_old=p_old);
             mu_samples[:,s] = tmp.mu
             lam_samples[:,s] = tmp.lam
             sir_weights[s] = self.p_posterior(tmp.mu,tmp.lam)
