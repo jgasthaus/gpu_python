@@ -98,20 +98,31 @@ def main():
             )
     logging.info(inference_params)
     
-    m = model.DiagonalConjugate(params)
+    m = model.DiagonalConjugate(
+            hyper_params=params,
+            kernelClass=model.CaronIndependent,
+            kernelParams=None)
     
     #data = R.random_sample((2,100))
     #data_time = N.cumsum(R.rand(100))
-    
+    map_collector = MAPCollector() 
     pf = inference.ParticleFilter(
             m,
             data,
             data_time,
             inference_params,
-            options.num_particles
+            options.num_particles,
+            storage_class = ArrayOfLists,
+            before_resampling_callback=map_collector
             )
     pf.run()
     labeling = pf.get_labeling()
+    firstmu = N.zeros(pf.T)
+    for t in range(pf.T):
+        firstmu[t] = pf.particles[0].U.get_array(t)[0].mu[0]
+    print firstmu
+    P.plot(firstmu)
+    P.show()
     N.savetxt('labeling.txt',labeling)
     print labeling
     plot_result(data,labeling[0,:])

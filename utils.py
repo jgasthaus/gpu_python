@@ -12,6 +12,9 @@ except:
 
 LOG2PI = log(2*pi)
 
+def noop(*args,**kwargs):
+    pass
+
 def isarray(a):
     return isinstance(a, N.ndarray)
 
@@ -282,3 +285,28 @@ def rdiscrete(pvals, numsamples=1):
         cdf = cumsum(pvals)
         unif = R.random_sample(size=numsamples)
         return cdf.searchsorted(unif)
+
+
+### Callback functions for use with the particle filter
+class MAPCollector(object):
+    """Class for collecting values from the MAP particle of the particle filter
+    before resampling."""
+    def __init__(self):
+        self.paramlist = []
+
+    def __call__(self,pf,t):
+        map_idx = N.argmax(pf.weights)
+        map_particle = pf.particles[map_idx]
+        self.paramlist.append(map_particle.U.get_array(t))
+
+    def __str__(self):
+        print self.paramlist
+
+    def __repr__(self):
+        self.__str__()
+
+    def get_first_mu(self):
+        mus = zeros(len(self.paramlist))
+        for n in range(len(self.paramlist)):
+            mus[n] = self.paramlist[n][0].mu[0]
+        return mus

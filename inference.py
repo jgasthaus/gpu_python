@@ -33,13 +33,15 @@ class Inference:
 class ParticleFilter(Inference):
     def __init__(self,model,data,data_time,params,num_particles,
                  storage_class=FixedSizeStoreRing,
-                 resample_fun=multinomial_resampling):
+                 resample_fun=multinomial_resampling,
+                 before_resampling_callback=noop):
         self.model = model
         self.data = data
         self.data_time = data_time
         self.num_particles = num_particles
         self.resample_fun = resample_fun
         self.params = params
+        self.before_resampling_callback = before_resampling_callback
         self.T = data.shape[1]
         self.particles = empty(num_particles,dtype=object)
         for i in range(num_particles):
@@ -202,6 +204,7 @@ class ParticleFilter(Inference):
             # normalize weights
             self.weights = self.weights / sum(self.weights)
             Neff = 1/sum(self.weights**2)
+            self.before_resampling_callback(self,t)
             self.weights, resampled_indices = self.resample_fun(self.weights)
             new_particles = empty(self.num_particles,dtype=object)
             used = set()
