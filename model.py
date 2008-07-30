@@ -51,6 +51,7 @@ class CaronIndependent(TransitionKernel):
     def __init__(self,model,params):
         TransitionKernel.__init__(self,model,params)
         self.num_aux = params[0]
+        self.rho = params[1]
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -81,9 +82,8 @@ class CaronIndependent(TransitionKernel):
         """General version of the random walk allowing for an arbitrary
         number of auxiliary variables and/or data points.
         """
-        if self.num_aux == 1 and data==None:
-            return self.__fast_walk(params,tau)
-
+        # FIXME: Ooops, this uses the marginal posteriors where we should
+        # the joint! 
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -95,7 +95,7 @@ class CaronIndependent(TransitionKernel):
         aux_vars = zeros((mu0.shape[0],N))
         for i in range(self.num_aux):
             # sample auxiliary variables
-            aux_vars[:,i] = rnorm(params.mu,params.lam/self.params[1])
+            aux_vars[:,i] = rnorm(params.mu,params.lam*self.params[1])
         if data != None:
             aux_vars[:,N-1] = data
         data_mean = mean(aux_vars,1)
@@ -108,6 +108,9 @@ class CaronIndependent(TransitionKernel):
         beta_star = beta + 0.5*nvar + (N*n0*(mu0-data_mean)**2)/(2*(n0+N))
         n_mu = rstudent(mu_star,(N*n0)*(alpha+0.5*N)/beta_star,2*alpha + N)
         n_lam = rgamma(alpha+0.5*N,beta_star)
+        #print params.mu, data_mean, mu_star, n_mu
+        #print alpha/beta,params.lam, (alpha+0.5*N)/beta_star, n_lam
+        #raw_input()
         return self.model.get_storage(n_mu,n_lam)
     
     def walk_with_data(self,params,data,tau=None):

@@ -101,7 +101,8 @@ def main():
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=None)
+            kernelParams=tuple([40,1])
+            )
     
     #data = R.random_sample((2,100))
     #data_time = N.cumsum(R.rand(100))
@@ -118,10 +119,15 @@ def main():
     pf.run()
     labeling = pf.get_labeling()
     firstmu = N.zeros(pf.T)
+    firstlam = N.zeros(pf.T)
     for t in range(pf.T):
         firstmu[t] = pf.particles[0].U.get_array(t)[0].mu[0]
+        firstlam[t] = pf.particles[0].U.get_array(t)[0].lam[0]
     print firstmu
+    P.subplot(2,1,1)
     P.plot(firstmu)
+    P.subplot(2,1,2)
+    P.plot(firstlam)
     P.show()
     N.savetxt('labeling.txt',labeling)
     print labeling
