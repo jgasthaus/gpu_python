@@ -7,6 +7,7 @@ import matplotlib.cm
 import logging
 from optparse import OptionParser
 import cProfile
+import cPickle,pickle
 
 from utils import *
 import model
@@ -35,7 +36,7 @@ def test():
     P.show()
 
 def get_options():
-    parser = OptionParser()
+    parser = OptionParser(usage="%prog [options] filename")
     parser.add_option("-f", "--file", dest="filename",
         help="write report to FILE", default="test.file", metavar="FILE")
     parser.add_option("-d","--pcadims", dest="pca_dims", type="int",
@@ -46,6 +47,9 @@ def get_options():
             help="Number of particles to use", 
             default=1000,
             metavar="NUM")
+    parser.add_option("-a","--algorithm",dest="algorithm",type="choice",
+            default="pf",metavar="ALG",choices=("pf","gibbs"),
+            help="Inference algorithm to use; either pf or gibbs.")
     return parser.parse_args()
 
 
@@ -57,6 +61,7 @@ def logging_setup():
                         filemode='w')
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
+    console.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
@@ -74,22 +79,35 @@ def plot_result(data,labeling,fn="out.pdf"):
     plot_scatter_2d(data,labeling)
     P.savefig(fn)
 
-def main():
-    logging_setup()
-    options,args = get_options()
-    data,data_time = prepare_data(options,args[0])
-    
-    
-    params = model.DiagonalConjugate.HyperParams(
+def get_model(options):
+    params = model.DiagonalConjugateHyperParams(
             a=4,
             b=1,
             mu0=0,
             n0=0.1,
             dims=2
             )
-    
     logging.info(params)
+
+    m = model.DiagonalConjugate(
+            hyper_params=params,
+            kernelClass=model.CaronIndependent,
+            kernelParams=tuple([40,1])
+            )
+    return m
+
+def main():
+    logging_setup()
+    options,args = get_options()
+    data,data_time = prepare_data(options,args[0])
+    if options.algorithm == "pf":
+        pf_test(data,data_time,options)
+    elif options.algorithm == "gibbs":
+        gibbs_test(data,data_time,options)
     
+
+def pf_test(data,data_time,options):
+    m = get_model(options)
     inference_params = inference.InferenceParams(
             rho=0.985,
             alpha=0.001,
@@ -98,11 +116,6 @@ def main():
             )
     logging.info(inference_params)
     
-    m = model.DiagonalConjugate(
-            hyper_params=params,
-            kernelClass=model.CaronIndependent,
-            kernelParams=tuple([40,1])
-            )
     
     #data = R.random_sample((2,100))
     #data_time = N.cumsum(R.rand(100))
@@ -132,6 +145,23 @@ def main():
     N.savetxt('labeling.txt',labeling)
     print labeling
     plot_result(data,labeling[0,:])
+    outf = open('aparticle.pkl', 'wb')
+    cPickle.dump(pf.particles[0],outf)
+    outf.close()
+
+
+def gibbs_test(data,data_time,options):
+    """Simple testbed for the Gibbs sampler development."""
+    BURN_IN = 2
+    m = get_model(options)
+    state = cPickle.load(open('aparticle.pkl','rb'))
+    sampler = inference.GibbsSampler(data,data_time,model,state) 
+    for n in range(BURN_IN):
+        logging.info("Burn-in sweep %i of %i" % (n+1,BURN_IN))
+        sampler.sweep()
+    # print sampler.state
+
+
 
 if __name__ == '__main__':
     #cProfile.run("main()")
