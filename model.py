@@ -133,13 +133,15 @@ class DiagonalConjugate(Model):
         self.walk_with_data = self.kernel.walk_with_data
 
     def read_params(self):
-        """Read the parameters of the model from a file."""
+        """Read the parameters of the model from a file.
+        """
         # Maybe use the ConigParser class?
         pass # TODO
 
     def write_params(self):
-        "Write the parameters of this model to a file, so it can be 
-        reconstructed using read_params."""
+        """Write the parameters of this model to a file, so it can be 
+        reconstructed using read_params.
+        """
         pass # TODO
 
     def set_data(self,data):
@@ -309,8 +311,13 @@ class DiagonalConjugateStorage(object):
     def __init__(self,mu=None,lam=None):
         self.mu = mu
         self.lam = lam
+    
     def __str__(self):
         return 'mu: ' + str(self.mu) + '\nlambda: ' + str(self.lam)
+    
+    def __repr__(self):
+        return self.__str__()
+
 
 
 
