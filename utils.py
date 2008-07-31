@@ -180,10 +180,13 @@ class ArrayOfLists(object):
 StorageType = FixedSizeStoreRing
 #StorageType = ArrayOfLists
 
+def zerofun():
+    return 0
+
 class ExtendingList(list):
     """A list type that grows if the given index is out of bounds and fills the
     new space with a given default value."""
-    def __init__(self,default=lambda:0):
+    def __init__(self,default=zerofun):
         list.__init__(self)
         self.default = default
 

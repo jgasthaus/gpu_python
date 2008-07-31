@@ -132,6 +132,16 @@ class DiagonalConjugate(Model):
         self.walk = self.kernel.walk
         self.walk_with_data = self.kernel.walk_with_data
 
+    def read_params(self):
+        """Read the parameters of the model from a file."""
+        # Maybe use the ConigParser class?
+        pass # TODO
+
+    def write_params(self):
+        "Write the parameters of this model to a file, so it can be 
+        reconstructed using read_params."""
+        pass # TODO
+
     def set_data(self,data):
         # if data.shape[1]!=0:
         #     self.empty = True
@@ -261,46 +271,46 @@ class DiagonalConjugate(Model):
 
     def get_storage(self,mu=None,lam=None):
         """Get a new parameter storage object."""
-        return DiagonalConjugate.Storage(mu,lam)
+        return DiagonalConjugateStorage(mu,lam)
     
-    class HyperParams(object):
-        def __init__(self,a,b,mu0,n0,dims=None):
-            if dims != None:
-                self.a = ones(dims) * a
-                self.b = ones(dims) * b
-                self.mu0 = ones(dims) * mu0
-            else:
-                self.a = a
-                self.b = b
-                self.mu0 = mu0
-            self.n0 = n0
-            if self.a.shape != self.b.shape:
-                raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
-                    "b.shape: " + str(b.shape)
-            elif self.a.shape != self.mu0.shape:
-                raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
-                    "mu0.shape: " + str(mu0.shape)
-            if len(self.a.shape)!= 0:
-                self.dims = self.a.shape[0]
-            else: 
-                self.dims = 1
+class DiagonalConjugateHyperParams(object):
+    def __init__(self,a,b,mu0,n0,dims=None):
+        if dims != None:
+            self.a = ones(dims) * a
+            self.b = ones(dims) * b
+            self.mu0 = ones(dims) * mu0
+        else:
+            self.a = a
+            self.b = b
+            self.mu0 = mu0
+        self.n0 = n0
+        if self.a.shape != self.b.shape:
+            raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
+                "b.shape: " + str(b.shape)
+        elif self.a.shape != self.mu0.shape:
+            raise ValueError, "shape mismatch: a.shape: " + str(a.shape) +\
+                "mu0.shape: " + str(mu0.shape)
+        if len(self.a.shape)!= 0:
+            self.dims = self.a.shape[0]
+        else: 
+            self.dims = 1
 
 
-        def __str__(self):
-            out = ['Model hyperparameters:\n']
-            out.append('a: ' + str(self.a) + '\n')
-            out.append('b: ' + str(self.b) + '\n')
-            out.append('mu0: ' + str(self.mu0) + '\n')
-            out.append('n0: ' + str(self.n0) + '\n')
-            return ''.join(out)
+    def __str__(self):
+        out = ['Model hyperparameters:\n']
+        out.append('a: ' + str(self.a) + '\n')
+        out.append('b: ' + str(self.b) + '\n')
+        out.append('mu0: ' + str(self.mu0) + '\n')
+        out.append('n0: ' + str(self.n0) + '\n')
+        return ''.join(out)
 
-    class Storage(object):
-        """Class for storing the parameter values of a single component."""
-        def __init__(self,mu=None,lam=None):
-            self.mu = mu
-            self.lam = lam
-        def __str__(self):
-            return 'mu: ' + str(self.mu) + '\nlambda: ' + str(self.lam)
+class DiagonalConjugateStorage(object):
+    """Class for storing the parameter values of a single component."""
+    def __init__(self,mu=None,lam=None):
+        self.mu = mu
+        self.lam = lam
+    def __str__(self):
+        return 'mu: ' + str(self.mu) + '\nlambda: ' + str(self.lam)
 
 
 
