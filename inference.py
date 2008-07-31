@@ -232,6 +232,55 @@ class ParticleFilter(Inference):
         return labeling
 
 class GibbsSampler(Inference):
-    def __init__(self,data,model):
+    def __init__(self,data,data_time,model,state=None):
+        if state != None:
+            self.state = state
+        else:
+            self.state = self.__init_state()
+        self.data = data
+        self.data_time = data_time
+        self.model = model
+        self.T = data.shape[1]
+
+    def __init_state(self):
+        """Initialize the state of the Gibbs sampler."""
+        pass
+
+    def sweep():
+        """Do one Gibbs sweep though the data."""
+        for t in range(self.T):
+            self.sample_label(t)
+            self.sample_death_time(t)
+            self.sample_params(t)
+
+    
+    def sample_death_time(self,t):
+        """Sample a new death time for the allocation variable at time t."""
+        pass
+
+    def sample_label(self,t):
+        """Sample a new label for the data point at time t."""
+        pass
+
+    def sample_params(self,t):
+        """Sample new parameters for the clusters at time t."""
+        # for c in cluster(t):
+        # self.sample_param(t,c)
+        pass
+
+    def sample_param(self,t,c):
+        """Sample new parameters for cluster c at time. The cluster may be
+        an old cluster or newly created."""
+
+    def sample_walk(self,c,start,stop):
+        """Sample new parameters from the walk for cluster c between time 
+        steps start and stop. This is necessary if we extend the life of a
+        cluster by sampling a new death time.
+        """
+        pass
+
+    def p_label_posterior(self,t):
+        """Compute the posterior probability over allocation variables given
+        all other allocation variables and death times."""
         pass
 

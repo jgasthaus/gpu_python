@@ -186,6 +186,7 @@ class DiagonalConjugate(Model):
         if self.empty:
             p = 0;
         else:
+            # FIXME: This is not correct! 
             p = sum(logpstudent(mu,self.mun,
                                 self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
                                 2*self.params.a+self.nk));
@@ -327,25 +328,20 @@ class Particle(object):
             # death times of allocation variables (assume they don't die until they do)
             self.d = (T+1) * ones(T,dtype=uint32)
             
-            # current time
-            # p.t = 0;
-            
             # total number of clusters in this particle up to the current time
             self.K = 0
             
-            # column vector containing the sizes of the current non-empty clusters
-            # p.m = zeros(T*Nt,1);
-            
             # array to store class counts at each time step
             self.mstore = self.storage_class(T,dtype=int32)
-            
+           
+            # storage object for the spike time of the last spike associated 
+            # with each cluster for each time step. 
             self.lastspike = self.storage_class(T,dtype=float64)
             
             # cell array to store the sampled values of rho across time
             # self.rhostore = zeros(T);
             
             # Parameter values of each cluster 1...K at each time step 1...T
-            # each entry should be a struct with p.U{t}{k}.m and p.U{t}{k}.C
             self.U = self.storage_class(T,dtype=object);
             
             # vector to store the birth times of clusters
@@ -364,9 +360,6 @@ class Particle(object):
         """
         return Particle(self.T,self)
 
-        
-
-
     def __str__(self):
         out = []
         out.append('c: ' + str(self.c)+'\n')
@@ -378,3 +371,6 @@ class Particle(object):
         return ''.join(out)
 
     __repr__ = __str__
+
+class GibbsState(Particle):
+    pass
