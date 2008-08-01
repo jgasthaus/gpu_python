@@ -244,11 +244,12 @@ class GibbsSampler(Inference):
 
     def __init_state(self):
         """Initialize the state of the Gibbs sampler."""
-        pass
+        self.num_clusters = 1 # TODO
 
-    def sweep():
+    def sweep(self):
         """Do one Gibbs sweep though the data."""
         for t in range(self.T):
+            logging.info("t=%i/%i" % (t,self.T))
             self.sample_label(t)
             self.sample_death_time(t)
             self.sample_params(t)
@@ -260,7 +261,8 @@ class GibbsSampler(Inference):
 
     def sample_label(self,t):
         """Sample a new label for the data point at time t."""
-        pass
+        logging.debug("Sampling new label at time %i" % t)
+        state = self.state
 
     def sample_params(self,t):
         """Sample new parameters for the clusters at time t."""
@@ -282,5 +284,22 @@ class GibbsSampler(Inference):
     def p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
         all other allocation variables and death times."""
-        pass
+        # 1) Determine which clusters we can potentially assign to:
+        #       - any cluster that is alive from now until this alloc dies
+        # 2) temporarily remove the current allocation from the counts m
+        # 3) for each possible label:
+        #       - temporarily assign to this cluster and update m
+        #       - compute joint of seating arrangement up to d_t
+        ms = self.mstore.copy() # local working copy
+        c_old = self.c[t]
+        d = min(self.deathtime[t],self.T+1)
+        # remove from old cluster
+        ms[c_old,t:d-1] = ms[c_old,t:d-1] - 1
+
+
+
+    def get_free_label(self,t):
+        """Return a label that is currently "free", i.e. can be used for
+        starting a new cluster."""
+        return self.num_clusters + 1 # TODO
 

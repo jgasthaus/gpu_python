@@ -70,7 +70,7 @@ def get_cov(themodel,num,steps):
 
 
 def main():
-    params = model.DiagonalConjugate.HyperParams(
+    params = model.DiagonalConjugateHyperParams(
             a=4,
             b=1,
             mu0=0,
@@ -85,9 +85,9 @@ def main():
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=tuple([10,1])
+            kernelParams=tuple([50,0.5])
             )
-    diagnostic_plots(m,5000)
+    diagnostic_plots(m,10000)
     # print get_cov(m,1000,30)[:,0]
 
 def diagnostic_plots(m,length):

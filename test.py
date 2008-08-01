@@ -61,7 +61,7 @@ def logging_setup():
                         filemode='w')
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    console.setLevel(logging.DEBUG)
+    #console.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
@@ -92,7 +92,7 @@ def get_model(options):
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=tuple([40,1])
+            kernelParams=tuple([50,0.5])
             )
     return m
 
@@ -110,7 +110,7 @@ def pf_test(data,data_time,options):
     m = get_model(options)
     inference_params = inference.InferenceParams(
             rho=0.985,
-            alpha=0.001,
+            alpha=0.1,
             p_uniform_deletion=0.99999,
             r_abs = 2
             )
@@ -126,7 +126,7 @@ def pf_test(data,data_time,options):
             data_time,
             inference_params,
             options.num_particles,
-            storage_class = ArrayOfLists,
+            storage_class = FixedSizeStoreRing,
             before_resampling_callback=map_collector
             )
     pf.run()
@@ -154,7 +154,11 @@ def gibbs_test(data,data_time,options):
     """Simple testbed for the Gibbs sampler development."""
     BURN_IN = 2
     m = get_model(options)
-    state = cPickle.load(open('aparticle.pkl','rb'))
+    state = model.GibbsState(cPickle.load(open('aparticle.pkl','rb')))
+    print state.mstore[0,0]
+    state.U[0,0] = None
+    state.check_consistency()
+    raw_input()
     sampler = inference.GibbsSampler(data,data_time,model,state) 
     for n in range(BURN_IN):
         logging.info("Burn-in sweep %i of %i" % (n+1,BURN_IN))

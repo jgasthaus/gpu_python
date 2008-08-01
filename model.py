@@ -64,6 +64,7 @@ class CaronIndependent(TransitionKernel):
         self.gam_up = alpha+0.5
 
     def walk(self,params,tau=None):
+        return self.__general_walk(params,data=None,tau=tau)
         if self.num_aux == 1:
             return self.__fast_walk(params,tau)
         else:
@@ -90,8 +91,10 @@ class CaronIndependent(TransitionKernel):
         beta = self.model.params.b
         if data != None:
             N = self.num_aux + 1
+            nn = self.num_aux/self.rho + 1 
         else:
             N = self.num_aux
+            nn = self.num_aux/self.rho 
         aux_vars = zeros((mu0.shape[0],N))
         for i in range(self.num_aux):
             # sample auxiliary variables
@@ -103,14 +106,10 @@ class CaronIndependent(TransitionKernel):
         data_mean.shape = (data_mean.shape[0],1)
         nvar = sum((aux_vars-data_mean)**2,1)
         data_mean.shape = (data_mean.shape[0],)
-        #print aux_vars,data_mean,nvar
-        mu_star = (n0*mu0 + N*data_mean)/(n0+N)
-        beta_star = beta + 0.5*nvar + (N*n0*(mu0-data_mean)**2)/(2*(n0+N))
-        n_mu = rstudent(mu_star,(N*n0)*(alpha+0.5*N)/beta_star,2*alpha + N)
-        n_lam = rgamma(alpha+0.5*N,beta_star)
-        #print params.mu, data_mean, mu_star, n_mu
-        #print alpha/beta,params.lam, (alpha+0.5*N)/beta_star, n_lam
-        #raw_input()
+        mu_star = (n0*mu0 + nn*data_mean)/(n0+nn)
+        beta_star = beta + 0.5*nvar + (nn*n0*(mu0-data_mean)**2)/(2*(n0+nn))
+        n_lam = rgamma(alpha+0.5*nn,beta_star)
+        n_mu = rnorm(mu_star,(nn+n0)*n_lam)
         return self.model.get_storage(n_mu,n_lam)
     
     def walk_with_data(self,params,data,tau=None):
@@ -193,15 +192,15 @@ class DiagonalConjugate(Model):
     def p_predictive(self,x):
         return exp(self.p_log_predictive(x))
 
-    def p_log_posterior_mean(self,mu):
+    def p_log_posterior_mean(self,mu,lam):
         """Compute log p(mu|z)."""
         if self.empty:
             p = 0;
         else:
-            # FIXME: This is not correct! 
-            p = sum(logpstudent(mu,self.mun,
-                                self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
-                                2*self.params.a+self.nk));
+            p = sum(logpnorm(mu,self.mun,lam*self.nn))
+            #p = sum(logpstudent(mu,self.mun,
+            #                    self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
+            #                    2*self.params.a+self.nk));
         return p
 
     def p_log_posterior_precision(self,lam):
@@ -212,7 +211,7 @@ class DiagonalConjugate(Model):
         return p
     
     def p_posterior(self,params):
-        return exp(self.p_log_posterior_mean(params.mu) +
+        return exp(self.p_log_posterior_mean(params.mu,params.lam) +
                    self.p_log_posterior_precision(params.lam))
 
     def p_log_prior(self,x):
@@ -389,5 +388,68 @@ class Particle(object):
 
     __repr__ = __str__
 
-class GibbsState(Particle):
-    pass
+class GibbsState():
+    """Class representing the state of the Gibbs sampler. This is similar to
+    a particle in many respects. However, as in the Gibbs sampler we only 
+    need to hold one state object in memory at any given time, we can trade
+    off speed and memory consumption differently.
+    
+    If a particle object is passed to the constructor it will be used to
+    initialize the state.
+    """
+    def __init__(self,particle=None,max_clusters=100):
+        self.max_clusters = max_clusters
+        if particle != None:
+            self.from_particle(particle)
+        else:
+            self.__empty_state()
+
+    def from_particle(self,particle):
+        """Construct state from the given particle object."""
+        self.T = particle.T
+        # allocation variables for all time steps
+        self.c = particle.c.copy()
+        # death times of allocation variables
+        # TODO: Does the PF keep track of these or do we have to recompute them?
+        self.d = particle.d.copy()
+        
+        # total number of clusters in the current state
+        self.K = particle.K
+        
+        # array to store class counts at each time step
+        self.mstore = zeros((self.max_clusters,self.T),dtype=int32)
+        self.lastspike = zeros((self.max_clusters,self.T),dtype=float64)
+        self.U = empty((self.max_clusters,self.T),dtype=object)
+        for t in range(self.T):
+            m = particle.mstore.get_array(t)
+            n = m.shape[0]
+            self.mstore[0:n,t] = m
+
+            m = particle.lastspike.get_array(t)
+            n = m.shape[0]
+            self.lastspike[0:n,t] = m
+            
+            m = particle.U.get_array(t)
+            n = m.shape[0]
+            self.U[0:n,t] = m
+        
+        # vector to store the birth times of clusters
+        self.birthtime = particle.birthtime.to_array()
+        
+        # vector to store the death times of clusters (0 if not dead)
+        self.deathtime = particle.deathtime.to_array() 
+
+
+    def __empty_state(self):
+        """Set all fields to represent an empty state."""
+        pass # TODO -> do we really need this?
+
+    def check_consistency(self):
+        # check that we have parameter values for all non-empty clusters
+        idx = where(self.mstore>0)
+        print self.U[idx].dtype
+        if not all(self.U[idx]!=None):
+            logging.error("Consitency error: Some needed parameters are None!"+
+                    str(where(self.U[idx]==None)))
+            raise Error
+

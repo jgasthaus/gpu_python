@@ -45,7 +45,10 @@ class FixedSizeStore(object):
             self.max_clusters = copy.max_clusters
             self.dtype = copy.dtype
         else:
-            self.array = zeros((size,max_clusters),dtype=dtype)
+            if dtype != object:
+                self.array = zeros(max_clusters,dtype=dtype)
+            else:
+                self.array = empty(max_clusters,dtype=dtype)
             self.lengths = zeros(size,dtype=int32)
             self.size = size
             self.max_clusters = max_clusters
@@ -85,7 +88,11 @@ class FixedSizeStoreRing(object):
             self.max_clusters = copy.max_clusters
             self.dtype = copy.dtype
         else:
-            self.array = zeros(max_clusters,dtype=dtype)
+            if dtype != object:
+                self.array = zeros(max_clusters,dtype=dtype)
+            else:
+                self.array = empty(max_clusters,dtype=dtype)
+
             self.lengths = 0
             self.size = size
             self.max_clusters = max_clusters
@@ -204,6 +211,9 @@ class ExtendingList(list):
     def __setitem__(self,i,x):
         self.__check(i)
         list.__setitem__(self,i,x)
+
+    def to_array(self):
+        return array(self)
 
     def shallow_copy(self):
         # FIXME: This may be inefficient
