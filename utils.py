@@ -36,6 +36,8 @@ def counts_to_index(counts):
             k += 1
     return idx
 
+isNone = N.frompyfunc(lambda x:x==None,1,1)
+
 class FixedSizeStore(object):
     def __init__(self,size,max_clusters=100,dtype=object,copy=None):
         if copy != None:
@@ -212,8 +214,14 @@ class ExtendingList(list):
         self.__check(i)
         list.__setitem__(self,i,x)
 
-    def to_array(self):
-        return array(self)
+    def to_array(self,size=None,dtype=int32):
+        if size == None:
+            return array(self)
+        else:
+            out = zeros(size,dtype=dtype)
+            tmp = array(self)
+            out[0:tmp.shape[0]] = tmp
+            return out
 
     def shallow_copy(self):
         # FIXME: This may be inefficient

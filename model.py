@@ -360,7 +360,7 @@ class Particle(object):
             # vector to store the birth times of clusters
             self.birthtime = ExtendingList()
             
-            # vector to store the death times of clusters (0 if not dead)
+            # vector to store the death times of allocation variables (0 if not dead)
             self.deathtime = ExtendingList() 
 
     def shallow_copy(self):
@@ -431,10 +431,11 @@ class GibbsState():
             self.U[0:n,t] = m
         
         # vector to store the birth times of clusters
-        self.birthtime = particle.birthtime.to_array()
+        self.birthtime = particle.birthtime.to_array(self.max_clusters,dtype=int32)
         
-        # vector to store the death times of clusters (0 if not dead)
-        self.deathtime = particle.deathtime.to_array() 
+        # vector to store the death times of allocation variables (0 if not dead)
+        self.deathtime = particle.deathtime.to_array(self.T,dtype=int32) 
+        self.deathtime[self.deathtime==0] = self.T+1
 
 
     def __empty_state(self):
@@ -442,10 +443,59 @@ class GibbsState():
         pass # TODO -> do we really need this?
 
     def check_consistency(self):
-        # check that we have parameter values for all non-empty clusters
+        """Check consistency of the Gibbs sampler state.
+
+        In particular, perform the following checks:
+        
+            1) if m(c,t) > 0 then U(c,t) != None
+            2) m(c,birth:death-1)>0 and m(c,0:birth)==0 and m(c,death:T)==0
+            3) m matches the information in c and deathtime
+            4) birthtime matches c
+
+        """
+        errors = 0
+        # check 1) we have parameter values for all non-empty clusters
         idx = where(self.mstore>0)
-        if not all(self.U[idx]!=None):
+        if any(isNone(self.U[idx])):
             logging.error("Consitency error: Some needed parameters are None!"+
-                    str(where(self.U[idx]==None)))
-            raise Error
+                    str(where(isNone(self.U[idx]))))
+            errors += 1
+        # check 2) There are no "re-births", assuming birthtime and deathtime
+        # are correct
+        active = where(sum(self.mstore,1)>0)[0]
+        for c in active:
+            # the death time of _cluster_ c is the first zero after its birth
+            birth = self.birthtime[c]
+            active_birth_to_end = where(self.mstore[c,birth:]==0)[0]
+            if active_birth_to_end.shape[0] == 0:
+                death = self.T+1
+            else:
+                death = birth + active_birth_to_end[0]
+            #print c,birth,death,self.mstore[c,birth:death]==0
+            if (any(self.mstore[c,birth:death]==0)):
+                logging.error(("Consitency error: mstore 0 while cluster %i is " +
+                        "alive") % c)
+            if any(self.mstore[c,0:birth]>0):
+                logging.error(("Consitency error: mstore > 0 while cluster %i is " +
+                        "not yet born") % c)
+            if any(self.mstore[c,death:]>0):
+                logging.error(("Consitency error: mstore > 0 while cluster %i is " +
+                        "already dead!") % c)
+
+        # check 3) we can reconstruct mstore from c and d
+        new_ms = zeros_like(self.mstore)
+        for t in range(self.T):
+            if t > 0:
+                new_ms[:,t] = new_ms[:,t-1]
+            new_ms[self.c[t],t] += 1
+            dying = where(self.deathtime == t)[0]
+            for d in dying:
+                new_ms[self.c[d],t] -= 1
+        print self.deathtime
+        print self.c,new_ms[0,:], self.mstore[0,:], self.mstore == new_ms
+
+        # check 4) 
+        # birth = where(self.mstore[c,:]>0)[0][0]
+        # print birth
+
 
