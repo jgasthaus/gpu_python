@@ -126,7 +126,7 @@ def pf_test(data,data_time,options):
             data_time,
             inference_params,
             options.num_particles,
-            storage_class = FixedSizeStoreRing,
+            storage_class = FixedSizeStore,
             before_resampling_callback=map_collector
             )
     pf.run()
@@ -155,7 +155,7 @@ def gibbs_test(data,data_time,options):
     BURN_IN = 2
     m = get_model(options)
     state = model.GibbsState(cPickle.load(open('aparticle.pkl','rb')))
-    print state.mstore[0,0]
+    print "mstore:0,0", state.mstore[0,0]
     state.U[0,0] = None
     state.check_consistency()
     raw_input()

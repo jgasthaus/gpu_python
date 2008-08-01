@@ -46,9 +46,9 @@ class FixedSizeStore(object):
             self.dtype = copy.dtype
         else:
             if dtype != object:
-                self.array = zeros(max_clusters,dtype=dtype)
+                self.array = zeros((size,max_clusters),dtype=dtype)
             else:
-                self.array = empty(max_clusters,dtype=dtype)
+                self.array = empty((size,max_clusters),dtype=dtype)
             self.lengths = zeros(size,dtype=int32)
             self.size = size
             self.max_clusters = max_clusters

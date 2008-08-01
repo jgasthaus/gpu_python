@@ -198,9 +198,6 @@ class DiagonalConjugate(Model):
             p = 0;
         else:
             p = sum(logpnorm(mu,self.mun,lam*self.nn))
-            #p = sum(logpstudent(mu,self.mun,
-            #                    self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
-            #                    2*self.params.a+self.nk));
         return p
 
     def p_log_posterior_precision(self,lam):
@@ -447,7 +444,6 @@ class GibbsState():
     def check_consistency(self):
         # check that we have parameter values for all non-empty clusters
         idx = where(self.mstore>0)
-        print self.U[idx].dtype
         if not all(self.U[idx]!=None):
             logging.error("Consitency error: Some needed parameters are None!"+
                     str(where(self.U[idx]==None)))
