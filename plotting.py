@@ -39,6 +39,12 @@ def plot_pcs_against_time_labeled(data,time,labels):
         plot_scatter_2d(vstack([time,data[n,:]]),labels)
         grid()
 
+
+def matlab_plot_3d(data,data_time,labeling):
+    from mlabwrap import mlab
+    mlab.scatter3(data_time,data[0,:],data[1,:],20,labeling)
+
+
 def main():
     HAVE_LABELS = False
     parser = OptionParser()
@@ -61,6 +67,7 @@ def main():
     clf()
     if HAVE_LABELS:
         plot_pcs_against_time_labeled(data_raw,data_time,labels)
+        matlab_plot_3d(data_raw,data_time,labels)
     else:
         plot_pcs_against_time(data_raw,data_time)
     show()
