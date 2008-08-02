@@ -2,6 +2,7 @@ from utils import *
 from model import *
 from numpy import *
 from numpy.random import rand, random_sample
+from scipy.maxentropy.maxentutils import logsumexp
 import logging
 import time
 
@@ -234,14 +235,16 @@ class ParticleFilter(Inference):
 
 class GibbsSampler(Inference):
     def __init__(self,data,data_time,model,state=None):
-        if state != None:
-            self.state = state
-        else:
-            self.state = self.__init_state()
         self.data = data
         self.data_time = data_time
         self.model = model
         self.T = data.shape[1]
+        if state != None:
+            self.state = state
+            if state.T != self.T:
+                logging.error("State length does not match data length!")
+        else:
+            self.state = self.__init_state()
 
     def __init_state(self):
         """Initialize the state of the Gibbs sampler."""
@@ -254,6 +257,9 @@ class GibbsSampler(Inference):
             self.sample_label(t)
             self.sample_death_time(t)
             self.sample_params(t)
+            self.state.check_consistency()
+            #print self.state
+            raw_input()
 
     
     def sample_death_time(self,t):
@@ -264,6 +270,7 @@ class GibbsSampler(Inference):
         """Sample a new label for the data point at time t."""
         logging.debug("Sampling new label at time %i" % t)
         state = self.state
+        print self.p_label_posterior(t)
 
     def sample_params(self,t):
         """Sample new parameters for the clusters at time t."""
@@ -284,18 +291,70 @@ class GibbsSampler(Inference):
 
     def p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
-        all other allocation variables and death times."""
-        # 1) Determine which clusters we can potentially assign to:
-        #       - any cluster that is alive from now until this alloc dies
+        all other allocation variables and death times.
+        
+        Returns:
+            None            if the allocation cannot be changed due to DCW
+            (possible,p)    where possible is an array of cluster labels
+                            the we can assign to, and p is an array of 
+                            the respective probabilities.
+        """
         # 2) temporarily remove the current allocation from the counts m
         # 3) for each possible label:
         #       - temporarily assign to this cluster and update m
         #       - compute joint of seating arrangement up to d_t
-        ms = self.mstore.copy() # local working copy
-        c_old = self.c[t]
-        d = min(self.deathtime[t],self.T+1)
+        state = self.state
+        ms = state.mstore.copy() # local working copy
+        c_old = state.c[t]
+        d = min(state.d[t],state.T+1) # TODO: min needed?
         # remove from old cluster
-        ms[c_old,t:d-1] = ms[c_old,t:d-1] - 1
+        ms[c_old,t:d] = ms[c_old,t:d] - 1
+        # Check for "dying customer's wish": 
+        # If removing the current allocation causes the cluster to die, but
+        # data is assigned to it _after_ its death, then we can't move the
+        # allocation
+        tmp = where(ms[c_old,t:]==0)[0]
+        if tmp.shape[0] == 0:
+            new_death = state.T+1
+        else:
+            new_death = t + tmp[0]
+        if any(where(state.c==c_old)[0]>=new_death):
+            # dying customers wish
+            logging.debug("DCW at time %i, %i=>%i" % 
+                    (t,state.deathtime[c_old],new_death))
+            return None
+        
+        # 1) Determine which clusters we can potentially assign to:
+        #       - any cluster that is alive at any point from now until this
+        #         alloc dies
+        possible = where(sum(state.mstore[:,t:d],1)>0)[0]
+        # remove allocation c_t from ms[c_t,t]
+        for tau in range(t+1,d):
+            ms[state.c[tau],tau] -= 1
+        p_crp = zeros(possible.shape[0],dtype=float64)
+        for i in range(possible.shape[0]):
+            ms_tmp = ms.copy()
+            c_new = possible[i]
+            # temporarily allocate to c_new
+            ms_tmp[c_new,t:d] +=1
+            if ms_tmp[c_new,t] > 0:
+                p_crp[i] = log(ms_tmp[c_new,t])
+            for tau in range(t+1,d):
+                if ms_tmp[c_new,tau] > 0:
+                    p_crp[i] += log(ms_tmp[c_new,tau])
+        Z = 0.
+        for tau in range(t+1,d):
+            if ms[state.c[tau],tau] > 0:
+                Z += log(ms[state.c[tau],tau])
+        return (possible,exp(p_crp - logsumexp(p_crp)))
+        
+
+                
+
+
+
+
+
 
 
 

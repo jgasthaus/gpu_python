@@ -499,4 +499,16 @@ class GibbsState():
         # birth = where(self.mstore[c,:]>0)[0][0]
         # print birth
 
+    def __str__(self,include_U=True):
+        out = []
+        out.append('c: ' + str(self.c)+'\n')
+        out.append('d: ' + str(self.d)+'\n')
+        out.append('K: ' + str(self.K)+'\n')
+        out.append('mstore: ' + str(self.mstore)+'\n')
+        out.append('lastspike: ' + str(self.lastspike)+'\n')
+        if include_U:
+            out.append('U: ' + str(self.U)+'\n')
+        return ''.join(out)
+
+
 

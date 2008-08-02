@@ -61,7 +61,7 @@ def logging_setup():
                         filemode='w')
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    #console.setLevel(logging.DEBUG)
+    console.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
@@ -158,7 +158,7 @@ def gibbs_test(data,data_time,options):
     #state.U[0,0] = None
     #state.mstore[0,100] = 0
     state.check_consistency()
-    raw_input()
+    #raw_input()
     sampler = inference.GibbsSampler(data,data_time,model,state) 
     for n in range(BURN_IN):
         logging.info("Burn-in sweep %i of %i" % (n+1,BURN_IN))
