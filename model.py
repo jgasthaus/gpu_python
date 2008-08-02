@@ -407,7 +407,6 @@ class GibbsState():
         # allocation variables for all time steps
         self.c = particle.c.copy()
         # death times of allocation variables
-        # TODO: Does the PF keep track of these or do we have to recompute them?
         self.d = particle.d.copy()
         
         # total number of clusters in the current state
@@ -433,9 +432,9 @@ class GibbsState():
         # vector to store the birth times of clusters
         self.birthtime = particle.birthtime.to_array(self.max_clusters,dtype=int32)
         
-        # vector to store the death times of allocation variables (0 if not dead)
-        self.deathtime = particle.deathtime.to_array(self.T,dtype=int32) 
-        self.deathtime[self.deathtime==0] = self.T+1
+        # vector to store the death times of clusters (0 if not dead)
+        self.deathtime = particle.deathtime.to_array(self.max_clusters,dtype=int32) 
+        self.deathtime[self.deathtime==0] = self.T+1 # TODO: Needed?
 
 
     def __empty_state(self):
@@ -471,7 +470,9 @@ class GibbsState():
                 death = self.T+1
             else:
                 death = birth + active_birth_to_end[0]
-            #print c,birth,death,self.mstore[c,birth:death]==0
+            if death != self.deathtime[c]:
+                logging.error("deatime does not contain the first zero after "+
+                        "birth of cluster %i" % c)
             if (any(self.mstore[c,birth:death]==0)):
                 logging.error(("Consitency error: mstore 0 while cluster %i is " +
                         "alive") % c)
@@ -488,11 +489,11 @@ class GibbsState():
             if t > 0:
                 new_ms[:,t] = new_ms[:,t-1]
             new_ms[self.c[t],t] += 1
-            dying = where(self.deathtime == t)[0]
+            dying = where(self.d == t)[0]
             for d in dying:
                 new_ms[self.c[d],t] -= 1
-        print self.deathtime
-        print self.c,new_ms[0,:], self.mstore[0,:], self.mstore == new_ms
+        if any(self.mstore != new_ms):
+            logging.error("Consitency error: Cannot reconstruct mstore from c and d")
 
         # check 4) 
         # birth = where(self.mstore[c,:]>0)[0][0]

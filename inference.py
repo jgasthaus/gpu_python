@@ -85,6 +85,7 @@ class ParticleFilter(Inference):
                     else: # size-biased deletion
                         i = rdiscrete(m/float(sum(m)),1)
                         idx = logical_and(logical_and(p.c == i, p.d>=t), p.c >= 0)
+                    print "deleting",idx
                 
                     p.d[idx] = t
                      # compute current alive cluster sizes p.m; TODO: vectorize this?
