@@ -87,7 +87,6 @@ class ParticleFilter(Inference):
                     else: # size-biased deletion
                         i = rdiscrete(m/float(sum(m)),1)
                         idx = logical_and(logical_and(p.c == i, p.d>=t), p.c >= 0)
-                    print "deleting",idx
                 
                     p.d[idx] = t
                      # compute current alive cluster sizes p.m; TODO: vectorize this?
@@ -297,8 +296,10 @@ class GibbsSampler(Inference):
         # map choice to actual label
         if choice < num_possible:
             c = possible[choice]
+            new_cluster = False
         elif choice == num_possible:
-            c = state.free_labels.pop() 
+            c = state.free_labels.pop()
+            new_cluster = True
         logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
         if c != c_old:
             state.c[t] = c
@@ -306,8 +307,23 @@ class GibbsSampler(Inference):
             state.mstore[c_old,t:state.d[t]] -= 1
             state.mstore[c,t:state.d[t]] += 1
             # update birthtime
-
+            if new_cluster or (t < state.birthtime[c]):
+                state.birthtime[c] = t
+                # no need to update birthtime[c_old] as we cannot move
+                # the first allocation!
+            
             # update deathtime
+            if new_cluster:
+                state.deathtime[c] = state.d[t]
+            else:
+                state.deathtime[c] = max(state.deathtime[c],state.d[t])
+
+            state.deathtime[c_old] = max(state.d[state.c==c_old])
+
+            # sample parameters for new cluster
+            if new_cluster:
+                self.sample_walk_for_new_cluster(t)
+
 
 
     def sample_params(self,t):
@@ -326,6 +342,16 @@ class GibbsSampler(Inference):
         cluster by sampling a new death time.
         """
         pass
+
+    def sample_walk_for_new_cluster(self,t):
+        """Sample parameters for a newly created cluster at time t, i.e. sample
+        parameters at time t from the posterior and for t+1 until p.d[t] from 
+        the walk."""
+        self.model.set_data(self.data[:,t])
+        self.state.U[self.state.c[t],t] = self.model.sample_posterior()
+        for tau in range(t+1,self.state.d[t]):
+            self.state.U[self.state.c[t],tau] = self.model.walk(
+                    self.state.U[self.state.c[t],tau-1])
     
 
     def log_p_label_posterior(self,t):
@@ -381,6 +407,9 @@ class GibbsSampler(Inference):
             for tau in range(t+1,d):
                 if ms_tmp[c_new,tau] > 0:
                     p_crp[i] += log(ms_tmp[c_new,tau])
+        # The normalization constant (normalized such that the probability for
+        # starting a new cluster is alpha) is given by the product of mstore
+        # for t+1:d
         Z = 0.
         for tau in range(t+1,d):
             if ms[state.c[tau],tau] > 0:
@@ -392,13 +421,7 @@ class GibbsSampler(Inference):
 
 
 
-
-
-
-
-
     def get_free_label(self,t):
         """Return a label that is currently "free", i.e. can be used for
         starting a new cluster."""
         return self.num_clusters + 1 # TODO
-

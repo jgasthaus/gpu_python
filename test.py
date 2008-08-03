@@ -92,7 +92,7 @@ def get_model(options):
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=tuple([50,0.5])
+            kernelParams=tuple([100,1])
             )
     return m
 

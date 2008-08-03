@@ -70,26 +70,11 @@ class CaronIndependent(TransitionKernel):
 
     def walk(self,params,tau=None):
         return self.__general_walk(params,data=None,tau=tau)
-        if self.num_aux == 1:
-            return self.__fast_walk(params,tau)
-        else:
-            return self.__general_walk(params,data=None,tau=tau)
-
-    def __fast_walk(self,params,tau=None,p_old=None):
-        # first, sample auxiliary variables
-        z = rnorm(params.mu,params.lam)
-        # then, sample new parameters
-        bstar = self.model.params.b + ((self.model.params.mu0-z)**2)*self.beta_up
-        n_mu = rstudent(self.mu_up1+z/self.np,self.mu_up2/bstar,self.mu_up3)
-        n_lam = rgamma(self.gam_up,bstar)
-        return self.model.get_storage(n_mu,n_lam)
 
     def __general_walk(self,params,data=None,tau=None):
         """General version of the random walk allowing for an arbitrary
         number of auxiliary variables and/or data points.
         """
-        # FIXME: Ooops, this uses the marginal posteriors where we should
-        # the joint! 
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -103,7 +88,7 @@ class CaronIndependent(TransitionKernel):
         aux_vars = zeros((mu0.shape[0],N))
         for i in range(self.num_aux):
             # sample auxiliary variables
-            aux_vars[:,i] = rnorm(params.mu,params.lam*self.params[1])
+            aux_vars[:,i] = rnorm(params.mu,params.lam*self.rho)
         if data != None:
             aux_vars[:,N-1] = data
         data_mean = mean(aux_vars,1)
@@ -235,6 +220,7 @@ class DiagonalConjugate(Model):
     def sample_posterior(self):
         if self.empty:
             return self.sample_prior()
+        #FIXME: This is wrong! -- See p_posterior!
         mu = rstudent(
                 self.mun,
                 self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
@@ -344,7 +330,7 @@ class Particle(object):
             # allocation variables for all time steps
             self.c = -1*ones(T,dtype=int16)
             # death times of allocation variables (assume they don't die until they do)
-            self.d = (T+1) * ones(T,dtype=uint32)
+            self.d = T * ones(T,dtype=uint32)
             
             # total number of clusters in this particle up to the current time
             self.K = 0
@@ -413,7 +399,8 @@ class GibbsState():
         self.c = particle.c.copy()
         # death times of allocation variables
         self.d = particle.d.copy()
-        
+        # make sure the maximum death time is T
+        self.d[self.d>self.T] = self.T
         # total number of clusters in the current state
         self.K = particle.K
        
@@ -439,7 +426,7 @@ class GibbsState():
         
         # vector to store the death times of clusters (0 if not dead)
         self.deathtime = particle.deathtime.to_array(self.max_clusters,dtype=int32) 
-        self.deathtime[self.deathtime==0] = self.T+1 # TODO: Needed?
+        self.deathtime[self.deathtime==0] = self.T # TODO: Needed?
         
         # determine active clusters
         active = where(sum(self.mstore,1)>0)[0]
@@ -486,7 +473,7 @@ class GibbsState():
             birth = self.birthtime[c]
             active_birth_to_end = where(self.mstore[c,birth:]==0)[0]
             if active_birth_to_end.shape[0] == 0:
-                death = self.T+1
+                death = self.T
             else:
                 death = birth + active_birth_to_end[0]
             if death != self.deathtime[c]:

@@ -85,9 +85,9 @@ def main():
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=tuple([50,0.5])
+            kernelParams=tuple([100,1])
             )
-    diagnostic_plots(m,10000)
+    diagnostic_plots(m,200)
     # print get_cov(m,1000,30)[:,0]
 
 def diagnostic_plots(m,length):
@@ -109,10 +109,10 @@ def diagnostic_plots(m,length):
     plot_lambdas(prior_lambdas)
 
     subplot(3,2,5)
-    plot(walk_means[0,:],'.')
+    plot(walk_means[0,:],)
     plot(walk_means[1,:],'r')
     subplot(3,2,6)
-    plot(walk_lambdas[0,:],'.')
+    plot(walk_lambdas[0,:],)
     plot(walk_lambdas[1,:],'r')
 
     #subplot(3,2,5)
