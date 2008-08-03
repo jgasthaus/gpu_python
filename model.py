@@ -1,7 +1,8 @@
-from utils import *
-from numpy import *
 import numpy.random as R
 from collections import deque
+
+from utils import *
+from numpy import *
 
 class TransitionKernel(object):
     def __init__(self,model,params):

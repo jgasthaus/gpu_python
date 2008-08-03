@@ -1,10 +1,11 @@
-from utils import *
-from model import *
 from numpy import *
 from numpy.random import rand, random_sample
 from scipy.maxentropy.maxentutils import logsumexp
 import logging
 import time
+
+from utils import *
+from model import *
 
 ### RESAMPLING SCHEMES
 def multinomial_resampling(weights):
