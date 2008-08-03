@@ -234,10 +234,11 @@ class ParticleFilter(Inference):
         return labeling
 
 class GibbsSampler(Inference):
-    def __init__(self,data,data_time,model,state=None):
+    def __init__(self,data,data_time,params,model,state=None):
         self.data = data
         self.data_time = data_time
         self.model = model
+        self.params = params
         self.T = data.shape[1]
         if state != None:
             self.state = state
@@ -267,10 +268,46 @@ class GibbsSampler(Inference):
         pass
 
     def sample_label(self,t):
-        """Sample a new label for the data point at time t."""
+        """Sample a new label for the data point at time t.
+        The conditional probability of p(c_t|rest) is proportional to
+        p(c_t|seating) x p(x_t|c_t)
+        """
         logging.debug("Sampling new label at time %i" % t)
         state = self.state
-        print self.p_label_posterior(t)
+        c_old = state.c[t]
+        res =  self.log_p_label_posterior(t)
+        if res == None:
+            # DCW -- cannot move label!
+            return
+        possible, log_p_crp = res
+        num_possible = possible.shape[0]
+        p_crp = empty(num_possible+1,dtype=float64)
+        p_crp[0:num_possible] = log_p_crp
+        p_crp[num_possible] = log(self.params.alpha)
+        p_lik = empty(num_possible+1,dtype=float64)
+        for i in range(num_possible):
+            p_lik[i] = self.model.p_log_likelihood(self.data[:,t],state.U[possible[i],t])
+        p_lik[num_possible] = self.model.p_log_prior(self.data[:,t])
+        q = p_crp + p_lik
+        q = exp(q - logsumexp(q))
+        # sample new label
+        print q
+        choice = rdiscrete(q) 
+        # map choice to actual label
+        if choice < num_possible:
+            c = possible[choice]
+        elif choice == num_possible:
+            c = state.free_labels.pop() 
+        logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
+        if c != c_old:
+            state.c[t] = c
+            # update mstore
+            state.mstore[c_old,t:state.d[t]] -= 1
+            state.mstore[c,t:state.d[t]] += 1
+            # update birthtime
+
+            # update deathtime
+
 
     def sample_params(self,t):
         """Sample new parameters for the clusters at time t."""
@@ -288,8 +325,9 @@ class GibbsSampler(Inference):
         cluster by sampling a new death time.
         """
         pass
+    
 
-    def p_label_posterior(self,t):
+    def log_p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
         all other allocation variables and death times.
         
@@ -306,7 +344,7 @@ class GibbsSampler(Inference):
         state = self.state
         ms = state.mstore.copy() # local working copy
         c_old = state.c[t]
-        d = min(state.d[t],state.T+1) # TODO: min needed?
+        d = min(state.d[t],state.T) # TODO: min needed?
         # remove from old cluster
         ms[c_old,t:d] = ms[c_old,t:d] - 1
         # Check for "dying customer's wish": 
@@ -346,7 +384,7 @@ class GibbsSampler(Inference):
         for tau in range(t+1,d):
             if ms[state.c[tau],tau] > 0:
                 Z += log(ms[state.c[tau],tau])
-        return (possible,exp(p_crp - logsumexp(p_crp)))
+        return (possible,p_crp - logsumexp(p_crp))
         
 
                 

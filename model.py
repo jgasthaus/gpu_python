@@ -1,6 +1,7 @@
 from utils import *
 from numpy import *
 import numpy.random as R
+from collections import deque
 
 class TransitionKernel(object):
     def __init__(self,model,params):
@@ -17,6 +18,9 @@ class TransitionKernel(object):
         """Sample from the walk given some observersion. This fallback 
         implementation just samples from the walk ignoring the data.""" 
         return self.walk(params,tau)
+
+    def walk_backwards(self,params,tau=None):
+        return self.walk(params,tau) #FIXME: Incorrect!
 
 class MetropolisWalk(TransitionKernel):
 
@@ -394,14 +398,14 @@ class GibbsState():
     If a particle object is passed to the constructor it will be used to
     initialize the state.
     """
-    def __init__(self,particle=None,max_clusters=100):
+    def __init__(self,particle=None,model=None,max_clusters=100):
         self.max_clusters = max_clusters
-        if particle != None:
-            self.from_particle(particle)
+        if particle != None and model != None:
+            self.from_particle(particle,model)
         else:
             self.__empty_state()
 
-    def from_particle(self,particle):
+    def from_particle(self,particle,model):
         """Construct state from the given particle object."""
         self.T = particle.T
         # allocation variables for all time steps
@@ -411,7 +415,7 @@ class GibbsState():
         
         # total number of clusters in the current state
         self.K = particle.K
-        
+       
         # array to store class counts at each time step
         self.mstore = zeros((self.max_clusters,self.T),dtype=int32)
         self.lastspike = zeros((self.max_clusters,self.T),dtype=float64)
@@ -435,6 +439,20 @@ class GibbsState():
         # vector to store the death times of clusters (0 if not dead)
         self.deathtime = particle.deathtime.to_array(self.max_clusters,dtype=int32) 
         self.deathtime[self.deathtime==0] = self.T+1 # TODO: Needed?
+        
+        # determine active clusters
+        active = where(sum(self.mstore,1)>0)[0]
+
+        # compute free labels
+        self.free_labels = deque(reversed(list(set(range(self.max_clusters))-set(active))))
+
+        # all clusters must have parameters from time 0 to their death
+        # -> sample them from their birth backwards
+        for c in active:
+            for t in reversed(range(0,self.birthtime[c])):
+                logging.debug("sampling params for cluster %i at time %i" % (c,t))
+                self.U[c,t] = model.kernel.walk_backwards(
+                        self.U[c,t+1])
 
 
     def __empty_state(self):
@@ -474,13 +492,13 @@ class GibbsState():
                 logging.error("deatime does not contain the first zero after "+
                         "birth of cluster %i" % c)
             if (any(self.mstore[c,birth:death]==0)):
-                logging.error(("Consitency error: mstore 0 while cluster %i is " +
+                logging.error(("Consistency error: mstore 0 while cluster %i is " +
                         "alive") % c)
             if any(self.mstore[c,0:birth]>0):
-                logging.error(("Consitency error: mstore > 0 while cluster %i is " +
+                logging.error(("Consistency error: mstore > 0 while cluster %i is " +
                         "not yet born") % c)
             if any(self.mstore[c,death:]>0):
-                logging.error(("Consitency error: mstore > 0 while cluster %i is " +
+                logging.error(("Consistency error: mstore > 0 while cluster %i is " +
                         "already dead!") % c)
 
         # check 3) we can reconstruct mstore from c and d

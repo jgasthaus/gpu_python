@@ -96,6 +96,16 @@ def get_model(options):
             )
     return m
 
+def get_inference_params(options):
+    inference_params = inference.InferenceParams(
+            rho=0.985,
+            alpha=0.1,
+            p_uniform_deletion=0.99999,
+            r_abs = 2
+            )
+    logging.info(inference_params)
+    return inference_params
+
 def main():
     logging_setup()
     options,args = get_options()
@@ -108,14 +118,7 @@ def main():
 
 def pf_test(data,data_time,options):
     m = get_model(options)
-    inference_params = inference.InferenceParams(
-            rho=0.985,
-            alpha=0.1,
-            p_uniform_deletion=0.99999,
-            r_abs = 2
-            )
-    logging.info(inference_params)
-    
+    inference_params = get_inference_params(model)
     
     #data = R.random_sample((2,100))
     #data_time = N.cumsum(R.rand(100))
@@ -154,12 +157,18 @@ def gibbs_test(data,data_time,options):
     """Simple testbed for the Gibbs sampler development."""
     BURN_IN = 2
     m = get_model(options)
-    state = model.GibbsState(cPickle.load(open('aparticle.pkl','rb')))
+    inference_params = get_inference_params(model)
+    state = model.GibbsState(cPickle.load(open('aparticle.pkl','rb')),m)
     #state.U[0,0] = None
     #state.mstore[0,100] = 0
     state.check_consistency()
     #raw_input()
-    sampler = inference.GibbsSampler(data,data_time,model,state) 
+    sampler = inference.GibbsSampler(
+            data=data,
+            data_time=data_time,
+            params = inference_params,
+            model=m,
+            state=state) 
     for n in range(BURN_IN):
         logging.info("Burn-in sweep %i of %i" % (n+1,BURN_IN))
         sampler.sweep()
