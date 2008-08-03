@@ -4,8 +4,10 @@ from pylab import *
 import matplotlib as M
 import matplotlib.cm as cm
 from matplotlib.colors import no_norm
+from matplotlib.patches import Ellipse
 from numpy import *
 from optparse import OptionParser
+import cPickle
 from utils import *
 
 markers = ['+','x','o','d','^','>' ,'v' ,'<' ,'s','p' ,'h' ,'8']
@@ -45,6 +47,79 @@ def matlab_plot_3d(data,data_time,labeling):
     mlab.scatter3(data_time,data[0,:],data[1,:],20,labeling)
 
 
+def plot_lifespan_histogram(particle_fn,rho=0.975):
+    p = cPickle.load(open(particle_fn,'rb'))
+    a = array(range(p.T))
+    ls = p.d - a
+    hist(ls,bins=100,normed=True)
+    plot(a,rho**a*(1-rho))
+
+def plot_geometric(rhos,xaxis=(0,500)):
+    """Plot the geometric distribution for the given values of rho.
+    p(k|rho) = (1-rho)**(k) x rho
+    """
+    x = range(xaxis[0],xaxis[1])
+    f = figure(figsize=(5.3,3.5))
+    for r in rhos:
+        plot(x,(1-r)**x*r)
+    grid()
+    title("Geometric Distribution $(1-p)^k p$")
+    legend(["p=%3.3f" % r for r in rhos])
+    savefig("geometric_distribution.pdf")
+
+def plot_gaussian(mu,sigma):
+    """Plot the contour of a general bivariate gaussian with mean mu and
+    covariance matrix sigma."""
+    t = arange(-pi,pi,0.01)
+    x = sin(t)
+    y = cos(t)
+
+    dd,vv = eig(sigma)
+    A = vv*sqrt(dd)
+    z = dot(vstack([x,y]).T,A)
+
+    plot(z[:,0]+mu[0],z[:,1]+mu[1]);
+
+def plot_diagonal_gaussian(mu,lam,color=0):
+    """Plot a gaussian with mean mu and diagonal precision lam."""
+    t = arange(-pi,pi,0.01)
+    x = sin(t)
+    y = cos(t)
+
+    A = eye(2)*sqrt(1/lam)
+    z = dot(vstack([x,y]).T,A)
+    print mu
+
+    plot(z[:,0]+mu[0],z[:,1]+mu[1],'-',color=color);
+
+
+def plot_state(particle,t):
+    active = where(particle.mstore.get_array(t)>0)[0]
+    for c in active:
+        U = particle.U.get(t,c)
+        plot_diagonal_gaussian(U.mu,U.lam)
+
+def plot_state_with_data(particle,data,data_time,t):
+    # TODO: Fix color plotting so Gaussian contours and data points ahve the
+    # same color
+    active = where(particle.mstore.get_array(t)>0)[0]
+    for c in active:
+        idx = where(
+                logical_and(
+                    particle.c==c,
+                    logical_and(
+                        t >= arange(particle.T),
+                        particle.d>t
+                    )
+                    )
+                )[0]
+        color = get_cmap("flag")(c*3)
+        plot(data[0,idx],data[1,idx],'x',color=color)
+        U = particle.U.get(t,c)
+        plot_diagonal_gaussian(U.mu,U.lam,color=color)
+    
+    
+
 def main():
     HAVE_LABELS = False
     parser = OptionParser()
@@ -64,7 +139,30 @@ def main():
     data_raw = data_file[:,2:].T
     data_time = data_file[:,1].T*1000
     num_dims = data_raw.shape[0]
+    ion()
     clf()
+    p = cPickle.load(open("aparticle.pkl",'rb'))
+    for t in range(1,500):
+        ioff()
+        clf()
+        plot_state_with_data(p,data_raw,data_time,t)
+        axis([-6,6,-3,3])
+        draw()
+        raw_input()
+    return
+    for t in range(1,500):
+        ioff()
+        clf()
+        plot_scatter_2d(data_raw[:,max(0,t-10):t],labels[max(0,t-10):t])
+        plot_state(p,t)
+        axis([-5,1,-3,3])
+        draw()
+        raw_input()
+    #plot_geometric(array([0.03,0.02,0.015,0.010,0.005,0.001]),(0,300))
+    #show()
+    return
+    plot_lifespan_histogram("aparticle.pkl")
+    show()
     if HAVE_LABELS:
         plot_pcs_against_time_labeled(data_raw,data_time,labels)
         matlab_plot_3d(data_raw,data_time,labels)
