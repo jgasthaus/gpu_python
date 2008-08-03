@@ -21,7 +21,8 @@ class TransitionKernel(object):
         return self.walk(params,tau)
 
     def walk_backwards(self,params,tau=None):
-        return self.walk(params,tau) #FIXME: Incorrect!
+        # FIXME: Not always true ...
+        return self.walk(params,tau) 
 
 class MetropolisWalk(TransitionKernel):
 
@@ -220,12 +221,8 @@ class DiagonalConjugate(Model):
     def sample_posterior(self):
         if self.empty:
             return self.sample_prior()
-        #FIXME: This is wrong! -- See p_posterior!
-        mu = rstudent(
-                self.mun,
-                self.nn*(self.params.a + 0.5*self.nk)*self.ibn,
-                2*self.params.a+self.nk)
-        lam = R.gamma(self.params.a+0.5*self.nk,self.ibn)
+        lam = rgamma(self.params.a+0.5*self.nk,self.bn)
+        mu = rnorm(self.mun,lam*self.nn)
         return self.get_storage(mu,lam)
 
     def sample_prior(self):
