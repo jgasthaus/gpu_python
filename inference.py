@@ -322,7 +322,9 @@ class GibbsSampler(Inference):
 
             # sample parameters for new cluster
             if new_cluster:
-                self.sample_walk_for_new_cluster(t)
+                self.model.set_data(self.data[:,t])
+                self.state.U[self.state.c[t],t] = self.model.sample_posterior()
+                self.sample_walk(self.state.c[t],t+1,self.state.d[t]) 
 
 
 
@@ -345,14 +347,6 @@ class GibbsSampler(Inference):
             self.state.U[c,tau] = self.model.walk(
                     self.state.U[c,tau-1])
         
-
-    def sample_walk_for_new_cluster(self,t):
-        """Sample parameters for a newly created cluster at time t, i.e. sample
-        parameters at time t from the posterior and for t+1 until p.d[t] from 
-        the walk."""
-        self.model.set_data(self.data[:,t])
-        self.state.U[self.state.c[t],t] = self.model.sample_posterior()
-        self.sample_walk(self.state.c[t],t+1,self.state.d[t]) 
 
     def log_p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
