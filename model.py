@@ -462,6 +462,15 @@ class GibbsState():
             logging.error("Consitency error: Some needed parameters are None!"+
                     str(where(isNone(self.U[idx]))))
             errors += 1
+        # check 1b) we need parameter values from 0 to the death of each cluster
+        active = where(sum(self.mstore,1)>0)[0]
+        for c in active:
+            d = self.deathtime[c]
+            if any(isNone(self.U[c,0:d])):
+                logging.error("Consitency error: Parameters not avaliable " +
+                        "from the start")
+
+
         # check 2) There are no "re-births", assuming birthtime and deathtime
         # are correct
         active = where(sum(self.mstore,1)>0)[0]

@@ -256,6 +256,7 @@ class GibbsSampler(Inference):
         for t in range(self.T):
             logging.info("t=%i/%i" % (t,self.T))
             self.sample_label(t)
+            print self.state.free_labels
             self.sample_death_time(t)
             self.sample_params(t)
             self.state.check_consistency()
@@ -271,6 +272,9 @@ class GibbsSampler(Inference):
         """Sample a new label for the data point at time t.
         The conditional probability of p(c_t|rest) is proportional to
         p(c_t|seating) x p(x_t|c_t)
+
+        TODO: Handle the case of singletons separately -- the is no point in
+              relabeling them.
         """
         logging.debug("Sampling new label at time %i" % t)
         state = self.state
@@ -298,7 +302,7 @@ class GibbsSampler(Inference):
             c = possible[choice]
             new_cluster = False
         elif choice == num_possible:
-            c = state.free_labels.pop()
+            c = self.get_free_label()
             new_cluster = True
         if c != c_old:
             logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
@@ -306,47 +310,68 @@ class GibbsSampler(Inference):
             # update mstore
             state.mstore[c_old,t:state.d[t]] -= 1
             state.mstore[c,t:state.d[t]] += 1
+
             # update birthtime
             if new_cluster or (t < state.birthtime[c]):
                 state.birthtime[c] = t
                 # no need to update birthtime[c_old] as we cannot move
                 # the first allocation!
             
-            # update deathtime
+            # update deathtime, TODO: We can possible make this faster
             if new_cluster:
                 state.deathtime[c] = state.d[t]
             else:
                 state.deathtime[c] = max(state.deathtime[c],state.d[t])
 
-            state.deathtime[c_old] = max(state.d[state.c==c_old])
+            deaths_c_old = state.d[state.c==c_old]
+            if len(deaths_c_old)==0:  
+                logging.debug("Cluster %i died, recycling label" % c_old)
+                # cluster died completely
+                state.deathtime[c_old] = self.T
+                self.add_free_label(c_old)
+            else:
+                state.deathtime[c_old] = max(deaths_c_old)
+                logging.debug("New deathtime for %i: %i"
+                        % (c_old,state.deathtime[c_old]))
 
             # sample parameters for new cluster
             if new_cluster:
                 self.model.set_data(self.data[:,t])
                 self.state.U[self.state.c[t],t] = self.model.sample_posterior()
                 self.sample_walk(self.state.c[t],t+1,self.state.d[t]) 
+                self.sample_walk_backwards(self.state.c[t],t,0)
 
 
 
     def sample_params(self,t):
         """Sample new parameters for the clusters at time t."""
-        # for c in cluster(t):
-        # self.sample_param(t,c)
-        pass
+        active = self.get_active(t) 
+        for c in active:
+            self.sample_param(t,c)
 
     def sample_param(self,t,c):
         """Sample new parameters for cluster c at time. The cluster may be
         an old cluster or newly created."""
+        logging.debug("New parameter for cluster %i at time %i" % (c,t))
 
     def sample_walk(self,c,start,stop):
         """Sample new parameters from the walk for cluster c between time 
         steps start and stop. This is necessary if we extend the life of a
         cluster by sampling a new death time.
         """
+        logging.debug("Sampling walk forward for %i: %i=>%i" % (c,start,stop))
         for tau in range(start,stop):
             self.state.U[c,tau] = self.model.walk(
                     self.state.U[c,tau-1])
-        
+
+    def sample_walk_backwards(self,c,start,stop):
+        """Sample backwards from walk starting at start-1 to stop (inclusive).
+        """
+        logging.debug("Sampling walk backwards for %i: %i=>%i" % (c,start,stop))
+        for tau in reversed(range(stop,start)):
+            self.state.U[c,tau] = self.model.kernel.walk_backwards(
+                    self.state.U[c,tau+1])
+
 
     def log_p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
@@ -411,11 +436,14 @@ class GibbsSampler(Inference):
         return (possible,p_crp - logsumexp(p_crp))
         
 
-                
+    def get_active(self,t):
+        """Return a list of active clusters at time t."""
+        return where(self.state.mstore[:,t]>0)[0]
 
+    def add_free_label(self,label):
+        self.state.free_labels.append(label)
 
-
-    def get_free_label(self,t):
+    def get_free_label(self):
         """Return a label that is currently "free", i.e. can be used for
         starting a new cluster."""
-        return self.num_clusters + 1 # TODO
+        return self.state.free_labels.pop()
