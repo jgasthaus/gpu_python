@@ -300,8 +300,8 @@ class GibbsSampler(Inference):
         elif choice == num_possible:
             c = state.free_labels.pop()
             new_cluster = True
-        logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
         if c != c_old:
+            logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
             state.c[t] = c
             # update mstore
             state.mstore[c_old,t:state.d[t]] -= 1
@@ -341,7 +341,10 @@ class GibbsSampler(Inference):
         steps start and stop. This is necessary if we extend the life of a
         cluster by sampling a new death time.
         """
-        pass
+        for tau in range(start,stop):
+            self.state.U[c,tau] = self.model.walk(
+                    self.state.U[c,tau-1])
+        
 
     def sample_walk_for_new_cluster(self,t):
         """Sample parameters for a newly created cluster at time t, i.e. sample
@@ -349,10 +352,7 @@ class GibbsSampler(Inference):
         the walk."""
         self.model.set_data(self.data[:,t])
         self.state.U[self.state.c[t],t] = self.model.sample_posterior()
-        for tau in range(t+1,self.state.d[t]):
-            self.state.U[self.state.c[t],tau] = self.model.walk(
-                    self.state.U[self.state.c[t],tau-1])
-    
+        self.sample_walk(self.state.c[t],t+1,self.state.d[t]) 
 
     def log_p_label_posterior(self,t):
         """Compute the posterior probability over allocation variables given
