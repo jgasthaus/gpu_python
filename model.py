@@ -58,6 +58,7 @@ class CaronIndependent(TransitionKernel):
         TransitionKernel.__init__(self,model,params)
         self.num_aux = params[0]
         self.rho = params[1]
+        self.D = model.params.mu0.shape[0]
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -76,22 +77,24 @@ class CaronIndependent(TransitionKernel):
         """General version of the random walk allowing for an arbitrary
         number of auxiliary variables and/or data points.
         """
+        return self.sample_posterior(self.sample_aux(params,tau),data,tau)
+
+    def sample_posterior(self,aux_vars,data,tau=None):
+        """Sample from the posterior given the auxiliary variables and data."""
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
         beta = self.model.params.b
+        num_aux = aux_vars.shape[1]
         if data != None:
-            N = self.num_aux + 1
-            nn = self.num_aux/self.rho + 1 
+            N = num_aux + 1
+            nn = num_aux/self.rho + 1 
         else:
-            N = self.num_aux
-            nn = self.num_aux/self.rho 
-        aux_vars = zeros((mu0.shape[0],N))
-        for i in range(self.num_aux):
-            # sample auxiliary variables
-            aux_vars[:,i] = rnorm(params.mu,params.lam*self.rho)
+            N = num_aux
+            nn = num_aux/self.rho 
         if data != None:
-            aux_vars[:,N-1] = data
+            print aux_vars.shape,data.shape
+            aux_vars = c_[aux_vars,data]
         data_mean = mean(aux_vars,1)
         # make data_mean a rank-2 D-by-1 array so we can use broadcasting
         data_mean.shape = (data_mean.shape[0],1)
@@ -102,6 +105,15 @@ class CaronIndependent(TransitionKernel):
         n_lam = rgamma(alpha+0.5*nn,beta_star)
         n_mu = rnorm(mu_star,(nn+n0)*n_lam)
         return self.model.get_storage(n_mu,n_lam)
+
+
+    def sample_aux(self,params,tau=None):
+        """Sample auxiliary variables given the current state."""
+        aux_vars = zeros((self.D,self.num_aux))
+        for i in range(self.num_aux):
+            aux_vars[:,i] = rnorm(params.mu,params.lam*self.rho)
+        return aux_vars
+
     
     def walk_with_data(self,params,data,tau=None):
         return self.__general_walk(params,data,tau)
@@ -405,6 +417,13 @@ class GibbsState():
         self.mstore = zeros((self.max_clusters,self.T),dtype=int32)
         self.lastspike = zeros((self.max_clusters,self.T),dtype=float64)
         self.U = empty((self.max_clusters,self.T),dtype=object)
+
+        self.aux_vars = zeros(
+            (self.T,
+            self.max_clusters,
+            model.kernel.D,
+            model.kernel.num_aux))
+        print self.aux_vars.shape
         for t in range(self.T):
             m = particle.mstore.get_array(t)
             n = m.shape[0]
@@ -453,6 +472,7 @@ class GibbsState():
             2) m(c,birth:death-1)>0 and m(c,0:birth)==0 and m(c,death:T)==0
             3) m matches the information in c and deathtime
             4) birthtime matches c
+            5) no parameter is NaN
 
         """
         errors = 0
@@ -510,6 +530,8 @@ class GibbsState():
         # check 4) 
         # birth = where(self.mstore[c,:]>0)[0][0]
         # print birth
+
+        # check 5)
 
     def __str__(self,include_U=True):
         out = []

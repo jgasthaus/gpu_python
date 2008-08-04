@@ -258,6 +258,7 @@ class GibbsSampler(Inference):
             self.sample_label(t)
             print self.state.free_labels
             self.sample_death_time(t)
+            self.sample_aux_vars(t)
             self.sample_params(t)
             self.state.check_consistency()
             #print self.state
@@ -351,8 +352,17 @@ class GibbsSampler(Inference):
 
     def sample_param(self,t,c):
         """Sample new parameters for cluster c at time. The cluster may be
-        an old cluster or newly created."""
+        an old cluster or newly created. The auxiliary variables at this 
+        time step have already been sampled."""
         logging.debug("New parameter for cluster %i at time %i" % (c,t))
+        data = None
+        if self.state.c[t] == c:
+            # there is data associated with this cluster at this time step
+            data = self.data[:,t]
+        self.state.U[c,t] = self.model.kernel.sample_posterior(
+                hstack((self.state.aux_vars[t,c,:,:],
+                       self.state.aux_vars[t+1,c,:,:])),
+                data)
 
     def sample_walk(self,c,start,stop):
         """Sample new parameters from the walk for cluster c between time 
@@ -371,6 +381,23 @@ class GibbsSampler(Inference):
         for tau in reversed(range(stop,start)):
             self.state.U[c,tau] = self.model.kernel.walk_backwards(
                     self.state.U[c,tau+1])
+
+    def sample_aux_vars(self,t):
+        """Sample the auxiliary variables at time step t."""
+        active = self.get_active(t)
+        for c in active:
+            if self.state.birthtime[c] == t:
+                continue # there is no aux var at cluster birth birth
+            self.sample_aux_var(t,c)
+
+    def sample_aux_var(self,t,c):
+        """Sample the auxiliary variable(s) for cluster c at time t.
+        We can assume that the cluster has existed at the previous time step.
+        """
+        logging.debug("Sampling aux vars for cluster %i at time %i" % (c,t)) 
+        # FIXME: This is incorrect, as it does not take the future into account!
+        self.state.aux_vars[t,c,:,:] = self.model.kernel.sample_aux(
+                self.state.U[c,t-1])
 
 
     def log_p_label_posterior(self,t):
