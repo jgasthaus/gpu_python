@@ -20,6 +20,9 @@ N.set_printoptions(edgeitems=30)
 # seed the RNG (this 
 R.seed(24)
 
+# turn on pylab interactive mode
+P.ion()
+
 def test():
     a = N.arange(-5,5,0.1)
     P.plot(a,pstudent(a,array(0),array(0.1/1.1*4,dtype=N.float64),array(8,dtype=N.float64)))
@@ -161,7 +164,7 @@ def gibbs_test(data,data_time,options):
     state = model.GibbsState(cPickle.load(open('aparticle.pkl','rb')),m)
     #state.U[0,0] = None
     #state.mstore[0,100] = 0
-    state.check_consistency()
+    state.check_consistency(data_time)
     #raw_input()
     sampler = inference.GibbsSampler(
             data=data,

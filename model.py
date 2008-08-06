@@ -463,7 +463,7 @@ class GibbsState():
         """Set all fields to represent an empty state."""
         pass # TODO -> do we really need this?
 
-    def check_consistency(self):
+    def check_consistency(self,data_time):
         """Check consistency of the Gibbs sampler state.
 
         In particular, perform the following checks:
@@ -473,6 +473,7 @@ class GibbsState():
             3) m matches the information in c and deathtime
             4) birthtime matches c
             5) no parameter is NaN
+            6) check that lastspike is correct
 
         """
         errors = 0
@@ -516,14 +517,7 @@ class GibbsState():
                         "already dead!") % c)
 
         # check 3) we can reconstruct mstore from c and d
-        new_ms = zeros_like(self.mstore)
-        for t in range(self.T):
-            if t > 0:
-                new_ms[:,t] = new_ms[:,t-1]
-            new_ms[self.c[t],t] += 1
-            dying = where(self.d == t)[0]
-            for d in dying:
-                new_ms[self.c[d],t] -= 1
+        new_ms = self.reconstruct_mstore(self.c,self.d)
         if any(self.mstore != new_ms):
             logging.error("Consitency error: Cannot reconstruct mstore from c and d")
 
@@ -532,6 +526,29 @@ class GibbsState():
         # print birth
 
         # check 5)
+
+        # check 6)
+        # lastspike[c,t] is supposed to contain the last spike time for all
+        # clusters _after_ the observation at time t
+        lastspike = zeros(self.max_clusters)
+        for t in range(self.T):
+            lastspike[self.c[t]] = data_time[t]
+            if any(self.lastspike[:,t]!=lastspike):
+                logging.error("Consitency error:lastspike incorrect at time %i"
+                        % t)
+
+
+    def reconstruct_mstore(self,c,d):
+        new_ms = zeros_like(self.mstore)
+        for t in range(self.T):
+            if t > 0:
+                new_ms[:,t] = new_ms[:,t-1]
+            new_ms[c[t],t] += 1
+            dying = where(d == t)[0]
+            for tau in dying:
+                new_ms[c[tau],t] -= 1
+        return new_ms
+
 
     def __str__(self,include_U=True):
         out = []

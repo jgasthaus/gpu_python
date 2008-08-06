@@ -15,6 +15,10 @@ LOG2PI = log(2*pi)
 def noop(*args,**kwargs):
     pass
 
+def normalize(x):
+    """Normalize a vector such that the sum of its elements is 1."""
+    return x/sum(x)
+
 def isarray(a):
     return isinstance(a, N.ndarray)
 

@@ -3,6 +3,7 @@ from numpy.random import rand, random_sample
 from scipy.maxentropy.maxentutils import logsumexp
 import logging
 import time
+from pylab import * # DEBUG
 
 from utils import *
 from model import *
@@ -256,18 +257,136 @@ class GibbsSampler(Inference):
         for t in range(self.T):
             logging.info("t=%i/%i" % (t,self.T))
             self.sample_label(t)
-            print self.state.free_labels
             self.sample_death_time(t)
             self.sample_aux_vars(t)
             self.sample_params(t)
-            self.state.check_consistency()
+            self.state.check_consistency(self.data_time)
             #print self.state
             raw_input()
 
+    def p_crp(self,t,m):
+        """Compute the conditional probability of the allocation at time 
+        t given the table sizes m (and the spike times tau).
+        """
+        active = where(m>0)[0]
+        num_active = active.shape[0]
+        p_crp = zeros(num_active+1)
+        p_crp[-1] = self.params.alpha
+        for i in range(num_active):
+            c = active[i]
+            if (t>0 and 
+                (self.data_time[t] - self.get_last_spike_time(c,t-1) 
+                    < self.params.r_abs)):
+                p_crp[i] = 0
+            else:
+                p_crp[i] = m[c]
+        p_crp = normalize(p_crp)
+        idx = where(active==self.state.c[t])[0]
+        if len(idx) > 0:
+            pos = idx[0]
+        else:
+            pos = num_active
+        return p_crp[pos]
     
+    def get_last_spike_time(self,c,t):
+        """Returns the occurence time of the last spike associated with cluster c 
+        before time t."""
+        return self.state.lastspike[c,t]
+
+
     def sample_death_time(self,t):
-        """Sample a new death time for the allocation variable at time t."""
-        pass
+        """Sample a new death time for the allocation variable at time t.
+        
+        The posterior p(d_t|...) is proportional to p(c_(t:last)|d_t)p(d_t),
+        where p(d_t) is prior death time distribution (geometric) and p(c|d_t) 
+        is the probability of the assignments to cluster c_t from the current
+        time step until the last allocation in that cluster dies.
+        """
+        state = self.state
+        c = state.c[t]
+        mc = state.mstore[c,:]
+        d_old = state.d[t]
+        length = self.T - t
+        # relative indices of assignments to this cluster
+        assignments = where(state.c[t:] == c)[0]
+        if assignments[0] != 0:
+            raise RuntimeError,"Something's wrong!"
+        assignments = assignments[1:]
+        # determine the last assignment made to this cluster (rel. to t)
+        last_assignment = assignments[-1]
+        dp = ones(length)
+        
+        # find the last allocation that "depends" on this allocation being,
+        # i.e. without it mstore at that point would be 0.
+        # take out current allocation
+        mc[t:d_old] -= 1
+        dependencies = where(
+                logical_and(state.c[t:d_old] == c,
+                    mc[t:d_old] == 1
+                    ))[0]
+        if len(dependencies)>0:
+            last_dep = dependencies[-1]
+            # the probability of deletion before last_dep is 0
+            dp[0:last_dep]=0
+        else:
+            last_dep = 0
+        possible_deaths = t+arange(last_dep+1,length-last_dep+1)
+        print possible_deaths
+        p = self.p_labels_given_deathtime_slow(t,possible_deaths) 
+
+        # FIXME: 
+        print dp
+        print p
+        print last_dep, length-last_dep-1
+        dp[last_dep:length-last_dep-1] = p
+        print "dp: ",dp
+        # The prior probability for d=t+1,...,T
+        prior = self.params.rho ** arange(0,length)*(1-self.params.rho)
+        prior[-1] = 1-sum(prior[0:-1])
+        q = dp * prior
+        q = q / sum(q)
+        plot(prior)
+        hold(True)
+        plot(dp/sum(dp))
+        plot(q)
+        hold(False)
+        dt = rdiscrete(q)
+        return dt + t + 1
+
+    def p_labels_given_deathtime_slow(self,t,possible_deaths):
+        """Compute the likelihood of the label at time t as a function of the
+        possible death times for that label.
+        """
+        c = self.state.c[t]
+        d_old = self.state.d[t]
+        p = ones(possible_deaths.shape[0])
+        for i in range(possible_deaths.shape[0]):
+            d = possible_deaths[i]
+            # construct mstore for this situation
+            ms = self.state.mstore.copy()
+            ms[c,t:d_old] -= 1
+            ms[c,t+1:d] += 1
+            for tau in range(t,self.T):
+                p[i] *= self.p_crp(tau,ms[:,tau])
+        return p
+
+    def p_labels_given_deathtime_fast(self,t,possible_deaths):
+        # take out assignments at time tau from mc, i.e. mc then contains
+        # the number of allocations after deletion but before assignment
+        for tau in assignments:
+            if tau > 0:
+                mc[t+tau] -= 1
+        dp[0] = prod(mc[t+1:d])
+        print last_assignment + 1
+        for tau in range(last_dep+1,last_assignment):
+            mc[t+tau-1] += 1
+            dp[tau] = prod(mc[t:last_assignment])
+            #if state.c[t+1+tau]==c:
+            #    dp[tau] = dp[tau-1]/mc[t+tau]*(mc[t+tau] + 1)
+            #else:
+            #    dp[tau] = dp[tau-1]
+
+
 
     def sample_label(self,t):
         """Sample a new label for the data point at time t.
@@ -296,7 +415,6 @@ class GibbsSampler(Inference):
         q = p_crp + p_lik
         q = exp(q - logsumexp(q))
         # sample new label
-        print q
         choice = rdiscrete(q) 
         # map choice to actual label
         if choice < num_possible:
