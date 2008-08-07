@@ -331,7 +331,7 @@ class GibbsSampler(Inference):
         else:
             last_dep = 0
         possible_deaths = t+arange(last_dep+1,self.T-t+1)
-        p = self.p_labels_given_deathtime_slow(t,possible_deaths) 
+        p = self.p_labels_given_deathtime(t,possible_deaths) 
 
         dp[last_dep:self.T-t] = p
         # The prior probability for d=t+1,...,T
@@ -341,6 +341,13 @@ class GibbsSampler(Inference):
         q = q / sum(q)
         dt = rdiscrete(q)
         return dt + t + 1
+
+    def p_labels_given_deathtime(self,t,possible_deaths):
+        p1 = self.p_labels_given_deathtime_slow(t,possible_deaths)
+        p2 = self.p_labels_given_deathtime_fast(t,possible_deaths)
+        p1 = p1/sum(p1)
+        p2 = p2/sum(p2)
+        assert(all(p1==p2))
 
     def p_labels_given_deathtime_slow(self,t,possible_deaths):
         """Compute the likelihood of the label at time t as a function of the
@@ -355,26 +362,44 @@ class GibbsSampler(Inference):
             ms = self.state.mstore.copy()
             ms[c,t:d_old] -= 1
             ms[c,t+1:d] += 1
-            for tau in range(t,self.T):
-                p[i] *= self.p_crp(tau,ms[:,tau])
+            for tau in range(t+1,self.T):
+                p[i] *= self.p_crp(tau,ms[:,tau-1])
         return p
 
     def p_labels_given_deathtime_fast(self,t,possible_deaths):
-        # take out assignments at time tau from mc, i.e. mc then contains
-        # the number of allocations after deletion but before assignment
-        for tau in assignments:
-            if tau > 0:
-                mc[t+tau] -= 1
-        dp[0] = prod(mc[t+1:d])
-        print last_assignment + 1
-        for tau in range(last_dep+1,last_assignment):
-            mc[t+tau-1] += 1
-            dp[tau] = prod(mc[t:last_assignment])
-            #if state.c[t+1+tau]==c:
-            #    dp[tau] = dp[tau-1]/mc[t+tau]*(mc[t+tau] + 1)
-            #else:
-            #    dp[tau] = dp[tau-1]
+        """Like the slow version, but compute the likelihood incrementally,
+        thus saving _a lot_ of computation time."""
+        c = self.state.c[t]
+        d_old = self.state.d[t]
+        last_dep = possible_deaths[0] - 1 # this should always be true
+        num_possible = self.T - last_dep
+        assert(num_possible==possible_deaths.shape[0])
+        # possible deaths always ranges from last_dep+1 to T (inclusive)
+        p = ones(possible_deaths.shape[0])
+        # first, compute the full solution for the first possible death time
+        ms = self.state.mstore.copy()
+        # ms[:,t-1] has to represent the state after allocation at time step
+        # t-1 and after deletion at time step t
+        # TODO: Do we have to compute this backwards?!
+        ms[c,last_dep:d_old] -= 1
+        for tau in range(last_dep+1,self.T):
+            p[0] *= self.p_crp(tau,ms[:,tau-1])
 
+        for i in range(1,num_possible-1):
+            d = i + last_dep + 1
+            print d
+            ms[c,d-1] +=1
+            if self.state.c[d] == c:
+                # numerator changed
+                p[i]=p[i-1]/(ms[c,d-1] - 1)*ms[c,d-1]
+
+            old = sum(ms[:,d-1]) + self.params.alpha
+            new = old + 1
+            Z = old/new
+            p[i] = p[i-1]*Z
+        # dying after the last allocation has the same probability a
+        p[-1] = p[-2]
+        return p
 
 
     def sample_label(self,t):
