@@ -304,7 +304,7 @@ class GibbsSampler(Inference):
         """
         state = self.state
         c = state.c[t]
-        mc = state.mstore[c,:]
+        mc = state.mstore[c,:].copy()
         d_old = state.d[t]
         length = self.T - t
         # relative indices of assignments to this cluster
@@ -330,26 +330,15 @@ class GibbsSampler(Inference):
             dp[0:last_dep]=0
         else:
             last_dep = 0
-        possible_deaths = t+arange(last_dep+1,length-last_dep+1)
-        print possible_deaths
+        possible_deaths = t+arange(last_dep+1,self.T-t+1)
         p = self.p_labels_given_deathtime_slow(t,possible_deaths) 
 
-        # FIXME: 
-        print dp
-        print p
-        print last_dep, length-last_dep-1
-        dp[last_dep:length-last_dep-1] = p
-        print "dp: ",dp
+        dp[last_dep:self.T-t] = p
         # The prior probability for d=t+1,...,T
         prior = self.params.rho ** arange(0,length)*(1-self.params.rho)
         prior[-1] = 1-sum(prior[0:-1])
         q = dp * prior
         q = q / sum(q)
-        plot(prior)
-        hold(True)
-        plot(dp/sum(dp))
-        plot(q)
-        hold(False)
         dt = rdiscrete(q)
         return dt + t + 1
 
