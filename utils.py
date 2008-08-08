@@ -294,7 +294,10 @@ def rbinom(p, n):
         
 # Multinomial distribution
 def rmultinomial(p, N):
-    return R.multinomial(N, p)
+    if N==0:
+        return zeros(len(p),dtype=int32)
+    else:
+        return R.multinomial(N, p)
     
 # Discrete distribution
 def rdiscrete(pvals, numsamples=1):
@@ -311,6 +314,8 @@ def rdiscrete(pvals, numsamples=1):
         unif = R.random_sample(size=numsamples)
         return cdf.searchsorted(unif)
 
+def inverseCDF(cdf,values):
+    return cdf.searchsorted(values)
 
 ### Callback functions for use with the particle filter
 class MAPCollector(object):

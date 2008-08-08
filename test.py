@@ -133,6 +133,7 @@ def pf_test(data,data_time,options):
             inference_params,
             options.num_particles,
             storage_class = FixedSizeStore,
+            resample_fun = inference.systematic_resampling,
             before_resampling_callback=map_collector
             )
     pf.run()

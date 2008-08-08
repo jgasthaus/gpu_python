@@ -10,9 +10,32 @@ from model import *
 
 ### RESAMPLING SCHEMES
 def multinomial_resampling(weights):
-    return (1/ones(len(weights)),
-            counts_to_index(rmultinomial(weights,len(weights)))
-           )
+    """Multinomial resampling of the given weights. The counts for each class
+    are simply drawn from a multinomial distribution with the given weights.
+    """
+    return counts_to_index(rmultinomial(weights,len(weights)))
+
+def residual_resampling(weights):
+    """Residual resampling. The counts in each bin are floor(w*N) + N' where
+    N' is sampled from a multinomial with the residual weights."""
+    N = weights.shape[0]
+    counts = floor(weights*N)
+    R = int(sum(counts))
+    new_weights = (weights*N - counts)/(N-R)
+    counts += rmultinomial(new_weights,N-R)
+    return counts_to_index(array(counts,dtype=int32))
+
+def stratified_resampling(weights):
+    N = weights.shape[0]
+    # obtain u_i drawn from U(i/N,(i+1)/N)
+    us = 1./N*arange(N) + 1./N*rand(N) 
+    return inverseCDF(cumsum(weights),us)
+
+def systematic_resampling(weights):
+    N = weights.shape[0]
+    u = 1./N*rand(N)
+    us = arange(N,dtype=double)/N+u
+    return inverseCDF(cumsum(weights),us)
 
 class InferenceParams(object):
     def __init__(self,rho,alpha,p_uniform_deletion,r_abs):
@@ -208,7 +231,10 @@ class ParticleFilter(Inference):
             self.weights = self.weights / sum(self.weights)
             Neff = 1/sum(self.weights**2)
             self.before_resampling_callback(self,t)
-            self.weights, resampled_indices = self.resample_fun(self.weights)
+            # FIXME: Do NOT resample at every time step
+            resampled_indices = self.resample_fun(self.weights)
+            # assume weights are uniform after resampling
+            self.weights = 1./self.num_particles * ones(self.num_particles)
             new_particles = empty(self.num_particles,dtype=object)
             used = set()
             for i in range(len(resampled_indices)):
