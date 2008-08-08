@@ -23,9 +23,9 @@ def isarray(a):
     return isinstance(a, N.ndarray)
 
 def load_file(fn):
-    logging.info('Loading file ' + str(fn))
+    logging.debug('Loading file ' + str(fn))
     data = N.loadtxt(fn)
-    logging.info('Read file, size: ' + str(data.shape))
+    logging.debug('Read file, size: ' + str(data.shape))
     return data
 
 def counts_to_index(counts):
