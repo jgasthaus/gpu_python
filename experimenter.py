@@ -209,15 +209,15 @@ def get_inference_params(options):
     logging.info(inference_params)
     return inference_params
 
-def run_pf(data,data_time,model,inference_params):
+def run_pf(data,data_time,model,inference_params,options):
     pf = inference.ParticleFilter(
-            m,
+            model,
             data,
             data_time,
             inference_params,
-            options.num_particles,
-            storage_class = FixedSizeStore,
-            resample_fun = inference.systematic_resampling,
+            options.particles,
+            storage_class = options.storage_class,
+            resample_fun = options.resampling_method,
             )
     pf.run()
     labeling = pf.get_labeling()
@@ -245,8 +245,10 @@ def main():
     logging_setup(opts)
     data,data_time,labels = load_data(opts)
     print opts
-    m = get_model(opts)
+    model = get_model(opts)
     ip = get_inference_params(opts)
+    if opts.algorithm == "pf":
+        run_pf(data,data_time,model,ip,opts)
 
 
 if __name__ == "__main__":

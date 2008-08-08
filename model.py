@@ -93,7 +93,7 @@ class CaronIndependent(TransitionKernel):
             N = num_aux
             nn = num_aux/self.rho 
         if data != None:
-            print aux_vars.shape,data.shape
+            #print aux_vars.shape,data.shape
             aux_vars = c_[aux_vars,data]
         data_mean = mean(aux_vars,1)
         # make data_mean a rank-2 D-by-1 array so we can use broadcasting
