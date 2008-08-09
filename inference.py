@@ -192,6 +192,9 @@ class ParticleFilter(Inference):
                 pU_U = ones(Kt)
                 qU_Uz = ones(Kt)
                 p.U.copy(t-1,t)
+                qU_z = 1
+                G0 = 1
+                p_ratio = 1
                 for i in range(len(active)):  # for all active clusters
                     cabs = active[i]
                     if i >= Kt:  # cluster newly created at this time step
@@ -203,7 +206,7 @@ class ParticleFilter(Inference):
                         G0 = self.model.p_prior_params(new_params)
                     else:  # old cluster
                         if cabs == c: # new data associated with cluster at this time step
-                            new_params = self.model.walk_with_data(p.U.get(t,cabs),x)
+                            (new_params,p_ratio) = self.model.walk_with_data(p.U.get(t,cabs),x)
                         else: # no new data
                             new_params = self.model.walk(p.U.get(t,cabs))
                         p.U.set(t,cabs,new_params) 
@@ -222,7 +225,9 @@ class ParticleFilter(Inference):
                 # FIXME: This is incorrect if we don't sample the walk with 
                 #        data from the prior. Also G0 and qU_z may not be set!
                 pz_U = self.model.p_likelihood(x,p.U.get(t,active_c))
-                w_inc = pz_U*Z_qc*G0/qU_z
+                w_inc = pz_U*Z_qc*G0*p_ratio/qU_z
+                print pz_U,Z_qc,G0,p_ratio,qU_z
+                print pz_U*G0/qU_z
                 # print w_inc
                 self.weights[n] *= w_inc
                 # 
@@ -233,6 +238,7 @@ class ParticleFilter(Inference):
             ### resample
             # normalize weights
             self.weights = self.weights / sum(self.weights)
+            print self.weights
             # print self.weights
             Neff = 1/sum(self.weights**2)
             self.effective_sample_size[t] = Neff

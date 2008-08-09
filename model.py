@@ -18,7 +18,7 @@ class TransitionKernel(object):
     def walk_with_data(self,params,data,tau=None):
         """Sample from the walk given some observersion. This fallback 
         implementation just samples from the walk ignoring the data.""" 
-        return self.walk(params,tau)
+        return (self.walk(params,tau),1)
 
     def walk_backwards(self,params,tau=None):
         # FIXME: Not always true ...
@@ -79,6 +79,32 @@ class CaronIndependent(TransitionKernel):
         """
         return self.sample_posterior(self.sample_aux(params,tau),data,tau)
 
+    def p_posterior(self,params,aux_vars,data=None):
+        n0 = self.model.params.n0
+        mu0 = self.model.params.mu0
+        alpha = self.model.params.a
+        beta = self.model.params.b
+        num_aux = aux_vars.shape[1]
+        if data != None:
+            N = num_aux + 1
+            nn = num_aux/self.rho + 1 
+        else:
+            N = num_aux
+            nn = num_aux/self.rho 
+        if data != None:
+            aux_vars = c_[aux_vars,data]
+        data_mean = mean(aux_vars,1)
+        # make data_mean a rank-2 D-by-1 array so we can use broadcasting
+        data_mean.shape = (data_mean.shape[0],1)
+        nvar = sum((aux_vars-data_mean)**2,1)
+        data_mean.shape = (data_mean.shape[0],)
+        mu_star = (n0*mu0 + nn*data_mean)/(n0+nn)
+        beta_star = beta + 0.5*nvar + (nn*n0*(mu0-data_mean)**2)/(2*(n0+nn))
+        p1 = sum(logpgamma(params.lam,alpha+0.5*nn,beta_star))
+        p2 = sum(logpnorm(params.mu,mu_star,(nn+n0)*params.lam))
+        return exp(p1+p2)
+        
+
     def sample_posterior(self,aux_vars,data,tau=None):
         """Sample from the posterior given the auxiliary variables and data."""
         n0 = self.model.params.n0
@@ -116,7 +142,11 @@ class CaronIndependent(TransitionKernel):
 
     
     def walk_with_data(self,params,data,tau=None):
-        return self.__general_walk(params,data,tau)
+        aux_vars = self.sample_aux(params,tau)
+        params = self.sample_posterior(aux_vars,data,tau)
+        p1 = self.p_posterior(params,aux_vars,None)
+        p2 = self.p_posterior(params,aux_vars,data)
+        return (params,p1/p2)
 
 
 
