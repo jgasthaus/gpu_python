@@ -226,8 +226,8 @@ class ParticleFilter(Inference):
                 #        data from the prior. Also G0 and qU_z may not be set!
                 pz_U = self.model.p_likelihood(x,p.U.get(t,active_c))
                 w_inc = pz_U*Z_qc*G0*p_ratio/qU_z
-                print pz_U,Z_qc,G0,p_ratio,qU_z
-                print pz_U*G0/qU_z
+                # print pz_U,Z_qc,G0,p_ratio,qU_z
+                # print pz_U*G0/qU_z
                 # print w_inc
                 self.weights[n] *= w_inc
                 # 
