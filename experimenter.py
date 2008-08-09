@@ -87,8 +87,8 @@ def handle_options():
     c.add_option("rows",dest="use_rows",default=0)
     o.add_option("--save-particle",dest="save_particle",type="choice",
             metavar="NUM",choices=("none","one","all"),
-            help="Number of particles to save (none,one,all)", default="none")
-    c.add_option('save_particle',dest="save_particle")
+            help="Number of particles to save (none,one,all)")
+    c.add_option('save_particle',dest="save_particle",default="none")
 
     ### Model options
     c.add_option('a',check=parse_array_string,
@@ -276,8 +276,8 @@ def write_pf_output(pf,outdir,options):
     # save labeling for all particles
     labeling = pf.get_labeling()
     savetxt(prefix + '.label',labeling,fmt="%i")
-    
-    if options.save_particle == "first":
+    print options.save_particle 
+    if options.save_particle == "one":
         # save a pickled version of the first particle
         outf = open(prefix + '.0.particle', 'wb')
         cPickle.dump(pf.particles[0],outf)
