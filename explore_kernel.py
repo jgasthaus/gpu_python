@@ -117,7 +117,6 @@ def diagnostic_plots(m,length):
 
     #subplot(3,2,5)
     #plot(get_probs(mywalk,m))
-    show()
 
     
 

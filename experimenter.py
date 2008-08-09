@@ -89,6 +89,8 @@ def handle_options():
             metavar="NUM",choices=("none","one","all"),
             help="Number of particles to save (none,one,all)")
     c.add_option('save_particle',dest="save_particle",default="none")
+    o.add_option("--draw-prior", action="store_true", dest="draw_prior",
+            help="Make a plot of draws from the prior and exit.", default=False)
 
     ### Model options
     c.add_option('a',check=parse_array_string,
@@ -291,13 +293,62 @@ def write_pf_output(pf,outdir,options):
     # save effictive sample size
     savetxt(prefix + '.ess',pf.effective_sample_size)
 
+def make_prior_plot(model,ip,opts):
+    import plotting
+    import pylab
+    NUM_CLUSTERS = 5
+    NUM_SAMPLES = 30
+    NUM_SUBPLOTS = 6
+    WALK_LENGTH = 1000
+    data = zeros((model.dims,NUM_CLUSTERS*NUM_SAMPLES))
+    labels = zeros(NUM_CLUSTERS*NUM_SAMPLES,dtype=int32)
+    for i in range(NUM_SUBPLOTS):
+        pylab.subplot(3,2,i+1)
+        for n in range(NUM_CLUSTERS):
+            params = model.sample_prior()
+            for s in range(NUM_SAMPLES):
+                data[:,n*NUM_SAMPLES + s] = rnorm(params.mu,params.lam)
+                labels[n*NUM_SAMPLES + s] = n
+            color = pylab.get_cmap("flag")(n*3)
+            plotting.plot_diagonal_gaussian(params.mu,params.lam,color)
+        plotting.plot_scatter_2d(data,labels)
+        pylab.grid()
+        pylab.axis([-5,5,-5,5])
+    F = pylab.gcf()
+    F.set_size_inches(8.3,11.7)
+    pylab.savefig("prior_draw.eps")
+
+    pylab.clf()
+    import explore_kernel
+    explore_kernel.diagnostic_plots(model,WALK_LENGTH)
+    pylab.savefig("walk_diagnostics.eps")
+
+    pylab.clf()
+    params = model.sample_prior()
+    data = zeros((model.dims,WALK_LENGTH))
+    for t in range(0,1000):
+        data[:,t] = rnorm(params.mu,params.lam)
+        params = model.walk(params)
+    pylab.plot(data[0,:],data[1,:],'x')
+    pylab.savefig("walk_draw.eps")
+
+
+
+
+
+
+
 def main():
     opts, args = handle_options()
     logging_setup(opts)
     data,data_time,labels = load_data(opts)
-    print opts
+    #print opts
     model = get_model(opts)
     ip = get_inference_params(opts)
+    if opts.draw_prior:
+        make_prior_plot(model,ip,opts)
+        return
+
     if opts.algorithm == "pf":
         outdir = prepare_output_dir(opts)
         pf = run_pf(data,data_time,model,ip,opts)

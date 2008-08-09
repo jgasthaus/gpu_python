@@ -30,8 +30,6 @@ def handle_options():
             help="Be verbose.",default=False)
     o.add_option("--debug", action="store_true", dest="debug",
             help="Print extra debugging info to STDOUT", default=False)
-    o.add_option("--draw-prior", action="store_true", dest="draw_prior",
-            help="Make a plot of draws from the prior and exit.", default=False)
     o.add_option("--noplot", action="store_true", dest="no_plot",
             help="Disable creation of plots entirely.", default=False)
     o.add_option("--nostats", action="store_true", dest="no_stats",
@@ -235,8 +233,6 @@ def do_statistics(options):
 
 def main():
     options,args = handle_options()
-    if options.draw_prior:
-        draw_prior(options)
 
     if not options.no_stats:
         do_statistics(options)
