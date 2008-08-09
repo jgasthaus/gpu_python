@@ -82,6 +82,13 @@ def load_particle(options):
     else:
         return None
 
+def load_ess(options):
+    fn = abspath(options.output_dir + "/" + options.identifier + "/" +
+                 options.identifier + ".ess")
+    return loadtxt(fn)
+    
+
+
 def compute_rand_index(labeling1,labeling2):
     """Compute the (adjusted) rand index between the two labelings.
     
@@ -144,6 +151,16 @@ def do_plotting(options):
     clf()
     plotting.plot_pcs_against_time_labeled(data,data_time,predicted_labels[0,:])
     savefig(plot_dir + "/" + "pcs_vs_time_predicted.eps")
+
+    # plot of effective sample size
+    clf()
+    ess = load_ess(options)
+    plot(ess)
+    title("Effective Sample Size")
+    xlabel("Time Step")
+    ylabel("ESS")
+    grid()
+    savefig(plot_dir + "/" + "ess.eps")
     
     particle = load_particle(options)
     if particle != None:
