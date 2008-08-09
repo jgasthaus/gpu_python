@@ -72,7 +72,8 @@ class ParticleFilter(Inference):
         self.particles = empty(num_particles,dtype=object)
         for i in range(num_particles):
             self.particles[i] = Particle(self.T,None,storage_class)
-        self.weights = ones(num_particles)/num_particles
+        self.weights = ones(num_particles)/float(num_particles)
+        self.effective_sample_size = zeros(self.T)
         self.__check()
 
     def __check(self):
@@ -218,8 +219,11 @@ class ParticleFilter(Inference):
                 # 
                 # w_inc = prod(Z_qc).*prod(pU_U)./prod(qU_Uz).*prod(G0)./prod(qU_z);
                 # compute probability of current data point under new parameters
+                # FIXME: This is incorrect if we don't sample the walk with 
+                #        data from the prior. Also G0 and qU_z may not be set!
                 pz_U = self.model.p_likelihood(x,p.U.get(t,active_c))
                 w_inc = pz_U*Z_qc*G0/qU_z
+                # print w_inc
                 self.weights[n] *= w_inc
                 # 
                 # if isnan(w_inc) % bad weight -- can happen if underflow occurs
@@ -229,7 +233,9 @@ class ParticleFilter(Inference):
             ### resample
             # normalize weights
             self.weights = self.weights / sum(self.weights)
+            # print self.weights
             Neff = 1/sum(self.weights**2)
+            self.effective_sample_size[t] = Neff
             self.before_resampling_callback(self,t)
             # FIXME: Do NOT resample at every time step
             resampled_indices = self.resample_fun(self.weights)

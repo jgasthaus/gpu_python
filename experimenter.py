@@ -1,22 +1,22 @@
 #!/usr/bin/python
 import numpy.random as R
-import numpy as N
-import pylab as P
+from numpy import float64, fromstring, zeros, savetxt
 import logging
 from optparse import OptionParser
 from cfgparse import ConfigParser
 import cPickle
+import os.path as P
+import os
 
 from utils import *
 import model
 import inference
 import preprocessing
-from plotting import *
 
 
 def parse_array_string(str):
     """Parse a string option into a numpy array of type double."""
-    return (N.fromstring(str,dtype=float64,sep=' '),None)
+    return (fromstring(str,dtype=float64,sep=' '),None)
 
 def parse_tuple_string(str):
     return tuple(float(s) for s in str[1:-1].split(','))
@@ -52,7 +52,7 @@ def handle_options():
     c = ConfigParser()
     c.add_optparse_help_option(o)
     c.add_optparse_files_option(o)
-    c.add_file('default.cfg')
+    f = c.add_file('default.cfg')
     o.add_option("-v","--verbose", action="store_true", dest="verbose",
             help="Be verbose.",default=False)
     o.add_option("--debug", action="store_true", dest="debug",
@@ -63,6 +63,13 @@ def handle_options():
     o.add_option("-f", "--filename", type="string",
             help="File name of the data file", metavar="FILE")
     c.add_option("filename")
+    o.add_option("--data-dir", type="string",dest="data_dir",
+            help="Directory containing the data files. This will be"+
+                 " concatenated with filename to yield the comple path.", metavar="DIR")
+    c.add_option("data_dir",dest="data_dir")
+    o.add_option("--output", type="string", dest="output_dir",
+            help="Directory for the output files (default: output)", metavar="DIR")
+    c.add_option("output_dir",dest="output_dir",default="output")
     o.add_option("-n","--particles", type="int",
             help="Number of particles to use", 
             metavar="NUM")
@@ -78,6 +85,10 @@ def handle_options():
     o.add_option("--rows",dest="use_rows",type="int",
             help="Number of rows of data to be used. If 0, all are used.")
     c.add_option("rows",dest="use_rows",default=0)
+    o.add_option("--save-particle",dest="save_particle",type="choice",
+            metavar="NUM",choices=("none","one","all"),
+            help="Number of particles to save (none,one,all)", default="none")
+    c.add_option('save_particle',dest="save_particle")
 
     ### Model options
     c.add_option('a',check=parse_array_string,
@@ -150,8 +161,9 @@ def load_data(options):
     """Load the data file specified in the options."""
     # also, make sure that use_dims and use_rows is adhered to
     # and set to the correct value (if 0)
-    logging.info("Loading data from " + options.filename)
-    data_file = load_file(options.filename)
+    fn = P.abspath(options.data_dir + options.filename)
+    logging.info("Loading data from " + fn)
+    data_file = load_file(fn)
     data_raw = data_file[:,2:].T
     data_time = data_file[:,1].T
     labels = array(data_file[:,0].T,dtype=int32)
@@ -220,9 +232,12 @@ def run_pf(data,data_time,model,inference_params,options):
             resample_fun = options.resampling_method,
             )
     pf.run()
-    labeling = pf.get_labeling()
-    firstmu = N.zeros(pf.T)
-    firstlam = N.zeros(pf.T)
+    return pf
+
+def plot_pf_output(pf):
+    # TO BE REMOVED
+    firstmu = zeros(pf.T)
+    firstlam = zeros(pf.T)
     for t in range(pf.T):
         firstmu[t] = pf.particles[0].U.get_array(t)[0].mu[0]
         firstlam[t] = pf.particles[0].U.get_array(t)[0].lam[0]
@@ -232,13 +247,49 @@ def run_pf(data,data_time,model,inference_params,options):
     P.subplot(2,1,2)
     P.plot(firstlam)
     P.show()
-    N.savetxt('labeling.txt',labeling)
     print labeling
     plot_result(data,labeling[0,:])
     outf = open('aparticle.pkl', 'wb')
     cPickle.dump(pf.particles[0],outf)
     outf.close()
 
+def prepare_output_dir(options):
+    """Check that the output directory exists and create it if necessary.
+    Also create a directory for this identifier inside the output dir.
+    """
+    outdir = options.output_dir
+    id = options.identifier
+    outdir = P.abspath(outdir)
+    if not P.exists(outdir):
+        os.mkdir(outdir)
+    full_dir = outdir + "/" + id
+    if not P.exists(full_dir):
+        os.mkdir(full_dir)
+    else:
+        logging.info("Output directory " + full_dir + " already exists.")
+    return full_dir
+
+def write_pf_output(pf,outdir,options):
+    id = options.identifier
+    prefix = outdir + "/" + id
+    
+    # save labeling for all particles
+    labeling = pf.get_labeling()
+    savetxt(prefix + '.label',labeling,fmt="%i")
+    
+    if options.save_particle == "first":
+        # save a pickled version of the first particle
+        outf = open(prefix + '.0.particle', 'wb')
+        cPickle.dump(pf.particles[0],outf)
+        outf.close()
+    if options.save_particle == "all":
+        # save pickled version of particles array
+        outf = open(prefix + '.particles', 'wb')
+        cPickle.dump(pf.particles,outf)
+        outf.close()
+
+    # save effictive sample size
+    savetxt(prefix + '.ess',pf.effective_sample_size)
 
 def main():
     opts, args = handle_options()
@@ -248,7 +299,9 @@ def main():
     model = get_model(opts)
     ip = get_inference_params(opts)
     if opts.algorithm == "pf":
-        run_pf(data,data_time,model,ip,opts)
+        outdir = prepare_output_dir(opts)
+        pf = run_pf(data,data_time,model,ip,opts)
+        write_pf_output(pf,outdir,opts)
 
 
 if __name__ == "__main__":

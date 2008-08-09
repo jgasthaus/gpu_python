@@ -41,6 +41,28 @@ def plot_pcs_against_time_labeled(data,time,labels):
         plot_scatter_2d(vstack([time,data[n,:]]),labels)
         grid()
 
+def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
+    num_dims = data.shape[0]
+    for n in range(num_dims):
+        subplot(num_dims,1,n+1)
+        plot_scatter_2d(vstack([time,data[n,:]]),labels)
+        for c in range(particle.K):    
+            start = particle.birthtime[c]
+            stop = particle.deathtime[c]
+            if stop == 0: stop = particle.T
+            length = stop-start
+            mus = N.zeros(length)
+            lams = N.zeros(length)
+            for i in range(length):
+                t = range(start,stop)[i]
+                mus[i] = particle.U.get_array(t)[c].mu[n]
+                lams[i] = particle.U.get_array(t)[c].lam[n]
+            #plot(time[arange(start,stop)],mus)
+            errorbar(time[arange(start,stop)],mus,sqrt(1/lams),linewidth=1)
+        xlabel("Time")
+        ylabel("PC " + str(n+1))
+        grid()
+
 
 def matlab_plot_3d(data,data_time,labeling):
     from mlabwrap import mlab
@@ -88,7 +110,6 @@ def plot_diagonal_gaussian(mu,lam,color=0):
 
     A = eye(2)*sqrt(1/lam)
     z = dot(vstack([x,y]).T,A)
-    print mu
 
     plot(z[:,0]+mu[0],z[:,1]+mu[1],'-',color=color);
 
@@ -116,7 +137,9 @@ def plot_state_with_data(particle,data,data_time,t):
         color = get_cmap("flag")(c*3)
         plot(data[0,idx],data[1,idx],'x',color=color)
         U = particle.U.get(t,c)
+        # print t,c,U.mu, U.lam
         plot_diagonal_gaussian(U.mu,U.lam,color=color)
+        axis([-5, 5, -5, 5])
     
     
 
@@ -140,29 +163,29 @@ def main():
     data_time = data_file[:,1].T*1000
     num_dims = data_raw.shape[0]
     ion()
-    clf()
-    p = cPickle.load(open("aparticle.pkl",'rb'))
-    for t in range(1,500):
-        ioff()
-        clf()
-        plot_state_with_data(p,data_raw,data_time,t)
-        axis([-6,6,-3,3])
-        draw()
-        raw_input()
-    return
-    for t in range(1,500):
-        ioff()
-        clf()
-        plot_scatter_2d(data_raw[:,max(0,t-10):t],labels[max(0,t-10):t])
-        plot_state(p,t)
-        axis([-5,1,-3,3])
-        draw()
-        raw_input()
-    #plot_geometric(array([0.03,0.02,0.015,0.010,0.005,0.001]),(0,300))
-    #show()
-    return
-    plot_lifespan_histogram("aparticle.pkl")
-    show()
+    # clf()
+    # p = cPickle.load(open("aparticle.pkl",'rb'))
+    # for t in range(1,500):
+    #     ioff()
+    #     clf()
+    #     plot_state_with_data(p,data_raw,data_time,t)
+    #     axis([-6,6,-3,3])
+    #     draw()
+    #     raw_input()
+    # return
+    # for t in range(1,500):
+    #     ioff()
+    #     clf()
+    #     plot_scatter_2d(data_raw[:,max(0,t-10):t],labels[max(0,t-10):t])
+    #     plot_state(p,t)
+    #     axis([-5,1,-3,3])
+    #     draw()
+    #     raw_input()
+    # #plot_geometric(array([0.03,0.02,0.015,0.010,0.005,0.001]),(0,300))
+    # #show()
+    # return
+    # plot_lifespan_histogram("aparticle.pkl")
+    # show()
     if HAVE_LABELS:
         plot_pcs_against_time_labeled(data_raw,data_time,labels)
         matlab_plot_3d(data_raw,data_time,labels)
