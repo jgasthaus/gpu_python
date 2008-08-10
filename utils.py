@@ -42,7 +42,18 @@ def counts_to_index(counts):
 
 isNone = N.frompyfunc(lambda x:x==None,1,1)
 
-class FixedSizeStore(object):
+class Store(object):
+    def to_array(self):
+        max_clusters = getattr(self,"max_clusters",100)
+        tmp = zeros((max_clusters,self.size),self.dtype)
+        for t in range(self.size):
+            m = self.get_array(t)
+            n = m.shape[0]
+            tmp[0:n,t] = m
+        return tmp
+
+
+class FixedSizeStore(Store):
     def __init__(self,size,max_clusters=100,dtype=object,copy=None):
         if copy != None:
             self.array = copy.array.copy()
@@ -85,7 +96,7 @@ class FixedSizeStore(object):
 
     __repr__ = __str__
 
-class FixedSizeStoreRing(object):
+class FixedSizeStoreRing(Store):
     def __init__(self,size,max_clusters=100,dtype=object,copy=None):
         if copy != None:
             self.array = copy.array.copy()
@@ -128,7 +139,7 @@ class FixedSizeStoreRing(object):
 
     __repr__ = __str__
 
-class ArrayOfLists(object):
+class ArrayOfLists(Store):
     def __init__(self,size,dtype=None,copy=None):
         if copy != None:
             self.size = copy.size
