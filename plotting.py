@@ -43,6 +43,8 @@ def plot_pcs_against_time_labeled(data,time,labels):
 
 def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
     num_dims = data.shape[0]
+    mstore = particle.mstore.to_array()
+    mean_cluster_size = mean(mstore[mstore>0])
     for n in range(num_dims):
         subplot(num_dims,1,n+1)
         plot_scatter_2d(vstack([time,data[n,:]]),labels)
@@ -58,7 +60,9 @@ def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
                 mus[i] = particle.U.get_array(t)[c].mu[n]
                 lams[i] = particle.U.get_array(t)[c].lam[n]
             #plot(time[arange(start,stop)],mus)
-            errorbar(time[arange(start,stop)],mus,sqrt(1/lams),linewidth=1)
+            lw = mean(mstore[c,start:stop])/mean_cluster_size*0.5
+            errorbar(time[arange(start,stop)],mus,sqrt(1/lams),
+                linewidth=lw,elinewidth=lw)
         xlabel("Time")
         ylabel("PC " + str(n+1))
         grid()

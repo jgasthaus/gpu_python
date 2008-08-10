@@ -6,6 +6,7 @@ qualitative analysis in the form of plots.
 """
 
 from numpy import *
+import numpy
 from pylab import *
 from scipy.misc import comb
 import locale
@@ -145,6 +146,18 @@ def do_plotting(options):
     grid()
     savefig(plot_dir + "/" + "scatter_predicted.eps")
 
+    # 2D scatter plot with entropy heatmap
+    clf()
+    ent = compute_label_entropy(predicted_labels)
+    certain = ent==0
+    uncertain = logical_not(certain)
+    scatter(data[0,certain],data[1,certain],10,marker="s",facecolors="none",
+            linewidth=0.3)
+    scatter(data[0,uncertain],data[1,uncertain],10,ent[uncertain],linewidth=0.3,cmap=cm.hot)
+    grid()
+    title("Label Entropy")
+    savefig(plot_dir + "/" + "scatter_entropy.eps")
+
     # 2D scatter plot of PCs against time with predicted labels (1st particle)
     clf()
     plotting.plot_pcs_against_time_labeled(data,data_time,predicted_labels[0,:])
@@ -153,7 +166,9 @@ def do_plotting(options):
     # plot of effective sample size
     clf()
     ess = load_ess(options)
-    plot(ess)
+    #plot(ess)
+    plot(ess[0,:])
+    plot(ess[1,:])
     title("Effective Sample Size")
     xlabel("Time Step")
     ylabel("ESS")
@@ -182,6 +197,17 @@ def do_plotting(options):
         savefig(plot_dir + "/" + "clusters_vs_time.eps")
 
 
+def compute_label_entropy(labeling):
+    N,T = labeling.shape
+    ent = zeros(T)
+    for t in range(T):
+        possible = unique(labeling[:,t])
+        p = zeros(possible.shape[0])
+        for i in range(possible.shape[0]):
+            p[i] = sum(labeling[:,t]==possible[i])
+        p = p / sum(p)
+        ent[t] = - sum(p*numpy.log2(p))
+    return ent
 
 
 
@@ -222,12 +248,17 @@ def do_statistics(options):
     out.append(descriptive2str(get_descriptive(unique_predicted))) 
 
     # Rand indices
-    AR,RI,MI,HI = compute_rand_index(predicted_labels[0,:],true_labels)
+    rand_indices = zeros((4,num_particles))
+    for i in range(num_particles):
+        ind = compute_rand_index(predicted_labels[i,:],true_labels)
+        rand_indices[:,i] = ind
     out.append("")
     out.append("Rand indices")
     out.append("------------")
-    out.append("Adjusted: " + str(AR))
-    out.append("Unadjusted: " + str(RI))
+    out.append("Adjusted: ")
+    out.append(descriptive2str(get_descriptive(rand_indices[0,:]))) 
+    out.append("Unadjusted: ")
+    out.append(descriptive2str(get_descriptive(rand_indices[1,:]))) 
     outstr = '\n'.join(out)
     print outstr
 

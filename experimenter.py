@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import numpy.random as R
-from numpy import float64, fromstring, zeros, savetxt
+from numpy import float64, fromstring, zeros, savetxt, vstack
 import logging
 from optparse import OptionParser
 from cfgparse import ConfigParser
@@ -291,7 +291,9 @@ def write_pf_output(pf,outdir,options):
         outf.close()
 
     # save effictive sample size
-    savetxt(prefix + '.ess',pf.effective_sample_size)
+    savetxt(prefix + '.ess',
+            vstack((pf.effective_sample_size,
+                    pf.unique_particles)))
 
 def make_prior_plot(model,ip,opts):
     import plotting
@@ -331,9 +333,6 @@ def make_prior_plot(model,ip,opts):
         params = model.walk(params)
     pylab.plot(data[0,:],data[1,:],'x')
     pylab.savefig("walk_draw.eps")
-
-
-
 
 
 
