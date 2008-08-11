@@ -155,9 +155,6 @@ class ParticleFilter(Inference):
                 
                 # likelihood for new cluster
                 p_lik[Kt] = p_prior
-                logging.debug("x: " + str(x))
-                logging.debug("p_lik: " + str(p_lik)) 
-                logging.debug("p_crp: " + str(p_crp/sum(p_crp)))
                 # propsal distribution: CRP x likelihood
                 q = p_crp * p_lik
                 
@@ -241,7 +238,6 @@ class ParticleFilter(Inference):
             Neff = 1/sum(self.weights**2)
             self.effective_sample_size[t] = Neff
             self.before_resampling_callback(self,t)
-            logging.info("Effective sample size: " + str(Neff))
             self.unique_particles[t] = self.num_particles
             if Neff < (self.num_particles / 2.):
                 resampled_indices = self.resample_fun(self.weights)
@@ -267,8 +263,6 @@ class ParticleFilter(Inference):
             sys.stdout.flush()
             logging.info("One step required " + str(elapsed) + " seconds, " +
                     str(remaining) + " secs remaining.")
-            logging.debug(str(self.particles[0].mstore.get_array(t)))
-            logging.debug(self.particles[0].U.get_array(t))
     
     def get_labeling(self):
         labeling = empty((self.num_particles,self.T),dtype=int32)
