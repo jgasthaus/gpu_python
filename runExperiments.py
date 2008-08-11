@@ -140,7 +140,7 @@ def checkResultLine(line):
 
 class LocalWorker(Worker):
     def run_command(self,cmdline):
-        p = pexpect.spawn(cmdline)
+        p = pexpect.spawn("nice -n 19 %s" % cmdline)
         while True:
             i = p.expect(["Done","\r\n",pexpect.EOF])
             if i == 1:
