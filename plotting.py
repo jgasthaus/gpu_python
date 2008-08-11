@@ -106,7 +106,7 @@ def plot_gaussian(mu,sigma):
 
     plot(z[:,0]+mu[0],z[:,1]+mu[1]);
 
-def plot_diagonal_gaussian(mu,lam,color=0):
+def plot_diagonal_gaussian(mu,lam,color=get_cmap()(0)):
     """Plot a gaussian with mean mu and diagonal precision lam."""
     t = arange(-pi,pi,0.01)
     x = sin(t)

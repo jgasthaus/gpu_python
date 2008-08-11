@@ -55,6 +55,8 @@ def handle_options():
     o.add_option("--rows",dest="use_rows",type="int",
             help="Number of rows of data to be used. If 0, all are used.")
     c.add_option("rows",dest="use_rows",default=0)
+    o.add_option("-p","--use-particle",dest="use_particle",type="int",
+                 default=0,help="Particle ID for labeling",metavar="ID")
 
     (options,args) = c.parse(o)
     return (options,args)
@@ -133,6 +135,7 @@ def compute_rand_index(labeling1,labeling2):
 
 def do_plotting(options):
     print "Generating Plots ..."
+    particle_id = options.use_particle
     plot_dir = options.output_dir + "/" + options.identifier + "/plots"
     if not exists(plot_dir):
         mkdir(plot_dir)
@@ -142,7 +145,7 @@ def do_plotting(options):
     
     # Labeled 2D scatter plot of the first two PCs
     clf()
-    plotting.plot_scatter_2d(data[0:2,:],predicted_labels[0,:])
+    plotting.plot_scatter_2d(data[0:2,:],predicted_labels[particle_id,:])
     grid()
     savefig(plot_dir + "/" + "scatter_predicted.eps")
 
@@ -151,16 +154,20 @@ def do_plotting(options):
     ent = compute_label_entropy(predicted_labels)
     certain = ent==0
     uncertain = logical_not(certain)
-    scatter(data[0,certain],data[1,certain],10,marker="s",facecolors="none",
-            linewidth=0.3)
-    scatter(data[0,uncertain],data[1,uncertain],10,ent[uncertain],linewidth=0.3,cmap=cm.hot)
+    if sum(certain)>0:
+        scatter(data[0,certain],data[1,certain],10,marker="s",facecolors="none",
+                linewidth=0.3)
+    if sum(uncertain)>0:
+        scatter(data[0,uncertain],data[1,uncertain],10,ent[uncertain],
+                linewidth=0.3,cmap=cm.hot)
     grid()
     title("Label Entropy")
     savefig(plot_dir + "/" + "scatter_entropy.eps")
 
     # 2D scatter plot of PCs against time with predicted labels (1st particle)
     clf()
-    plotting.plot_pcs_against_time_labeled(data,data_time,predicted_labels[0,:])
+    plotting.plot_pcs_against_time_labeled(data,data_time,
+            predicted_labels[particle_id,:])
     savefig(plot_dir + "/" + "pcs_vs_time_predicted.eps")
 
     # plot of effective sample size
@@ -173,6 +180,31 @@ def do_plotting(options):
     ylabel("ESS")
     grid()
     savefig(plot_dir + "/" + "ess.eps")
+
+    # ISI histogram for each neuron
+    clf()
+    l = predicted_labels[particle_id,:]
+    unique_labels = unique(l)
+    for i in range(unique_labels.shape[0]):
+        c = unique_labels[i]
+        points = data[:,l==c]
+        times = data_time[l==c]
+        isi = times[1:] - times[0:-1]
+        subplot(unique_labels.shape[0],2,2*i+1)
+        plot(points[0,:],points[1,:],'x')
+        title("Cluster %i" % c)
+        grid()
+        axis([-5,5,-5,5])
+        subplot(unique_labels.shape[0],2,2*i+2)
+        hist(isi,bins=100,range=(0,100),normed=True)
+        xx = arange(2,100,0.1)
+        rate = 1/mean(isi-2)
+        plot(xx,rate*exp(-rate*(xx-2)))
+        title("ISI (mean = %.2f)" % mean(isi))
+    F = gcf()
+    F.set_size_inches(8.3,11.7)
+    savefig(plot_dir + "/" + "isi.eps")
+    
     
     particle = load_particle(options)
     if particle != None:
@@ -225,6 +257,8 @@ def descriptive2str(desc):
 
 
 def do_statistics(options):
+    stats_fn = (options.output_dir + "/" + options.identifier
+                + "/" + options.identifier + ".stats")
     predicted_labels = load_labels(options)
     data,data_time,true_labels = experimenter.load_data(options)
     out = [    "Statistics for result set: " + options.identifier]
@@ -245,6 +279,12 @@ def do_statistics(options):
     out.append("Number of clusters")
     out.append("------------------")
     out.append(descriptive2str(get_descriptive(unique_predicted))) 
+    
+    out.append("")
+    out.append("Label Entropy")
+    out.append("------------------")
+    ent = compute_label_entropy(predicted_labels)
+    out.append(descriptive2str(get_descriptive(ent))) 
 
     # Rand indices
     rand_indices = zeros((4,num_particles))
@@ -260,6 +300,9 @@ def do_statistics(options):
     out.append(descriptive2str(get_descriptive(rand_indices[1,:]))) 
     outstr = '\n'.join(out)
     print outstr
+    outfile = open(stats_fn,"w")
+    outfile.write(outstr)
+    outfile.close()
 
 def main():
     options,args = handle_options()
