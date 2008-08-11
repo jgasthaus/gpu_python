@@ -73,9 +73,9 @@ def prepare_data(options,fn):
     data_file = load_file(fn)
     data_raw = data_file[:,2:].T
     data_time = data_file[:,1].T*1000
-    # data = preprocessing.normalize(data_raw)
-    # data = preprocessing.pca(data,keep=options.pca_dims)
-    return data_raw,data_time
+    data = preprocessing.normalize(data_raw)
+    data = preprocessing.pca(data,keep=options.pca_dims)
+    return data,data_time
 
 def plot_result(data,labeling,fn="out.pdf"):
     P.clf()

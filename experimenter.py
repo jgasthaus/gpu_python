@@ -199,11 +199,15 @@ def get_model(options):
     return m
 
 def logging_setup(options):
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%a, %d %b %Y %H:%M:%S',
-                        filename='debug.log',
-                        filemode='w')
+    if options.debug:
+        logging.basicConfig(level=logging.DEBUG,
+                            format='%(asctime)s %(levelname)-8s %(message)s',
+                            datefmt='%a, %d %b %Y %H:%M:%S',
+                            filename='debug.log',
+                            filemode='w')
+    else:
+        logging.basicConfig(level=logging.ERROR)
+
     if options.verbose:
         console = logging.StreamHandler()
         console.setLevel(logging.INFO)
@@ -278,7 +282,6 @@ def write_pf_output(pf,outdir,options):
     # save labeling for all particles
     labeling = pf.get_labeling()
     savetxt(prefix + '.label',labeling,fmt="%i")
-    print options.save_particle 
     if options.save_particle == "one":
         # save a pickled version of the first particle
         outf = open(prefix + '.0.particle', 'wb')
@@ -352,6 +355,7 @@ def main():
         outdir = prepare_output_dir(opts)
         pf = run_pf(data,data_time,model,ip,opts)
         write_pf_output(pf,outdir,opts)
+    print "Done"
 
 
 if __name__ == "__main__":
