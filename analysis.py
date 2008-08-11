@@ -166,9 +166,8 @@ def do_plotting(options):
     # plot of effective sample size
     clf()
     ess = load_ess(options)
-    #plot(ess)
-    plot(ess[0,:])
     plot(ess[1,:])
+    plot(ess[0,:])
     title("Effective Sample Size")
     xlabel("Time Step")
     ylabel("ESS")

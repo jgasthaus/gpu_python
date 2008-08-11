@@ -70,6 +70,8 @@ def handle_options():
     o.add_option("--output", type="string", dest="output_dir",
             help="Directory for the output files (default: output)", metavar="DIR")
     c.add_option("output_dir",dest="output_dir",default="output")
+    o.add_option("--force",action="store_true",dest="overwrite",default=False,
+            help="Run even if the output directory already exists.")
     o.add_option("-n","--particles", type="int",
             help="Number of particles to use", 
             metavar="NUM")
@@ -272,7 +274,10 @@ def prepare_output_dir(options):
     if not P.exists(full_dir):
         os.mkdir(full_dir)
     else:
-        logging.info("Output directory " + full_dir + " already exists.")
+        if options.overwrite:
+            logging.warning("Output directory " + full_dir + " already exists.")
+        else:
+            raise RuntimeError, "Output directory already exists. Aborting."
     return full_dir
 
 def write_pf_output(pf,outdir,options):
