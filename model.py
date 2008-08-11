@@ -135,10 +135,7 @@ class CaronIndependent(TransitionKernel):
 
     def sample_aux(self,params,tau=None):
         """Sample auxiliary variables given the current state."""
-        aux_vars = zeros((self.D,self.num_aux))
-        for i in range(self.num_aux):
-            aux_vars[:,i] = rnorm(params.mu,params.lam*self.rho)
-        return aux_vars
+        return rnorm_many(params.mu,params.lam*self.rho,self.num_aux)
 
     
     def walk_with_data(self,params,data,tau=None):

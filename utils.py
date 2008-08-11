@@ -262,8 +262,13 @@ def pnorm(x, mu, lam):
     return exp(logpnorm(x, mu, lam))
         
 def rnorm(mu, lam):
-    sd = sqrt(1/lam)
-    return mu + sd*R.standard_normal(mu.shape)
+    return mu + sqrt(1/lam)*R.standard_normal(mu.shape)
+
+def rnorm_many(mu,lam,N):
+    """Sample N times from a normal distribution with mean mu and precision
+    lam.
+    """
+    return R.normal(loc=mu,scale=sqrt(1/lam),size=(N,mu.shape[0])).T
 
 # Student-t distribution
 def logpstudent(x, mu, lam, alpha):

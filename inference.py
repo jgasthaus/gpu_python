@@ -4,6 +4,7 @@ from scipy.maxentropy.maxentutils import logsumexp
 import logging
 import time
 from pylab import * # DEBUG
+import sys
 
 from utils import *
 from model import *
@@ -260,6 +261,10 @@ class ParticleFilter(Inference):
             end_t = time.time()
             elapsed = end_t - start_t
             remaining = elapsed * (self.T-t)
+            finish_time = time.strftime("%a %H:%M:%S",
+                    time.localtime(time.time()+remaining))
+            print "%i/%i -- %.1f => %s" % (t,self.T,elapsed,finish_time)
+            sys.stdout.flush()
             logging.info("One step required " + str(elapsed) + " seconds, " +
                     str(remaining) + " secs remaining.")
             logging.debug(str(self.particles[0].mstore.get_array(t)))
