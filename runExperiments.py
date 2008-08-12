@@ -158,7 +158,7 @@ class SSHWorker(Worker):
         self.host = host
         self.cwd = CWD
     def run_command(self,command):
-        cmdline = 'ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -x %s "cd %s; nice -n 19 %s"' % \
+        cmdline = 'ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -x %s "cd %s; /usr/bin/nice -n 19 %s"' % \
           (self.host,self.cwd,command)
         p = pexpect.spawn(cmdline)
         while True:
@@ -188,6 +188,13 @@ def add_jobs(jobfile):
     cmds = [(CMD + " " + p + " " + ADDITIONAL_PARAMS).strip() for p in params]
     for cmd in cmds:
         JOB_QUEUE.put(cmd)        
+
+def add_ssh(machine,num):
+    for i in range(num):
+        name = machine + str(i)
+        SSH_WORKERS[name] = SSHWorker(machine,JOB_QUEUE,RESULT_QUEUE)
+        SSH_WORKERS[name].setDaemon(True)
+        SSH_WORKERS[name].start()
     
 def add_workers(workerList):
     for worker in workerList:

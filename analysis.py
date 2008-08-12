@@ -7,6 +7,7 @@ qualitative analysis in the form of plots.
 
 from numpy import *
 import numpy
+from numpy.random import shuffle
 from pylab import *
 from scipy.misc import comb
 import locale
@@ -19,6 +20,9 @@ import experimenter,plotting,utils
 
 # I have no idea what causes the locale to be changed, but this fixes it ...
 locale.setlocale(locale.LC_NUMERIC,"C")
+
+# Global variable to store the labels once loaded and preprocessed
+LABELS = None
 
 def handle_options():
     """Handle command line and config file options."""
@@ -57,6 +61,17 @@ def handle_options():
     c.add_option("rows",dest="use_rows",default=0)
     o.add_option("-p","--use-particle",dest="use_particle",type="int",
                  default=0,help="Particle ID for labeling",metavar="ID")
+    o.add_option("--merge-noise",dest="merge_noise",type="float",default=0.,
+            help="Merge all clusters with NUM% of the data into one.",
+            metavar="NUM")
+    o.add_option("--subsample",type="int",default=0,metavar="NUM",
+            help="Subsample data set to contain this number of points (0: all).")
+    o.add_option("--binary-label",action="store_true",default=False,
+            dest="binary_label",help="The label is binary: compare only the " +
+            "cluster with the largest overlap to the one with label 1.")
+    o.add_option("--plot-fmt",type="choice",choices=("eps","pdf","png","jpg"),
+            dest="output_format",
+            default="eps",help="Plot output format (eps,pdf,png,jpg).")
 
     (options,args) = c.parse(o)
     return (options,args)
@@ -66,9 +81,31 @@ def draw_prior(options):
     pass # May  have to move this to experimenter
 
 def load_labels(options):
+    global LABELS
+    if LABELS != None:
+        return LABELS
     fn = abspath(options.output_dir + "/" + options.identifier + "/" +
                  options.identifier + ".label")
+    print "Loading labels ..."
     labels = loadtxt(fn,dtype=int32)
+    if options.merge_noise>0:
+        print "Merging noise clusters ..."
+        unique_labels = unique(labels)
+        for l in range(labels.shape[0]):
+            mapping = -1*ones(max(unique_labels)+1,dtype=int32)
+            k = 0
+            for c in unique_labels:
+                if sum(labels[l,:]==c) > labels.shape[1]*options.merge_noise/100.:
+                    mapping[c] = k
+                    k += 1
+            mapping[mapping==-1] = max(mapping)+1
+            for n in range(labels.shape[1]):
+                labels[l,n] = mapping[labels[l,n]]
+        print "Done."
+    LABELS = labels
+
+
+
     return labels
 
 def load_particle(options):
@@ -131,44 +168,94 @@ def compute_rand_index(labeling1,labeling2):
     return (AR,RI,MI,HI)
 
 
+def subsample(data,data_time,labels,options):
+    if options.subsample == 0:
+        return data,data_time,labels
+    else:
+        idx = arange(data_time.shape[0])
+        shuffle(idx)
+        idx = idx[:options.subsample]
+        return (data[:,idx],data_time[idx],labels[:,idx],idx)
+
 
 
 def do_plotting(options):
     print "Generating Plots ..."
     particle_id = options.use_particle
+    ext = "." + options.output_format
     plot_dir = options.output_dir + "/" + options.identifier + "/plots"
     if not exists(plot_dir):
         mkdir(plot_dir)
     predicted_labels = load_labels(options)
     data,data_time,true_labels = experimenter.load_data(options)
+    s_data,s_data_time,s_predicted_labels,idx = subsample(
+            data,data_time,predicted_labels,options)
     T = data_time.shape[0]
     
     # Labeled 2D scatter plot of the first two PCs
     clf()
-    plotting.plot_scatter_2d(data[0:2,:],predicted_labels[particle_id,:])
+    plotting.plot_scatter_2d(s_data[0:2,:],s_predicted_labels[particle_id,:])
     grid()
-    savefig(plot_dir + "/" + "scatter_predicted.eps")
+    savefig(plot_dir + "/" + "scatter_predicted" + ext)
 
     # 2D scatter plot with entropy heatmap
     clf()
-    ent = compute_label_entropy(predicted_labels)
+    ent = compute_label_entropy(s_predicted_labels)
     certain = ent==0
     uncertain = logical_not(certain)
     if sum(certain)>0:
-        scatter(data[0,certain],data[1,certain],10,marker="s",facecolors="none",
+        scatter(s_data[0,certain],s_data[1,certain],10,marker="s",facecolors="none",
                 linewidth=0.3)
     if sum(uncertain)>0:
-        scatter(data[0,uncertain],data[1,uncertain],10,ent[uncertain],
+        scatter(s_data[0,uncertain],s_data[1,uncertain],10,ent[uncertain],
                 linewidth=0.3,cmap=cm.hot)
     grid()
     title("Label Entropy")
-    savefig(plot_dir + "/" + "scatter_entropy.eps")
+    savefig(plot_dir + "/" + "scatter_entropy" + ext)
+
+    # Label entropy vs. time
+    clf()
+    ent = compute_label_entropy(predicted_labels)
+    plot(ent,linewidth=0.1)
+    ylabel("Entropy")
+    xlabel("Time step")
+    F = gcf()
+    F.set_size_inches(12,3)
+    title("Label Entropy vs. time steps")
+    grid()
+    savefig(plot_dir + "/" + "entropy" + ext)
+
 
     # 2D scatter plot of PCs against time with predicted labels (1st particle)
     clf()
-    plotting.plot_pcs_against_time_labeled(data,data_time,
-            predicted_labels[particle_id,:])
-    savefig(plot_dir + "/" + "pcs_vs_time_predicted.eps")
+    plotting.plot_pcs_against_time_labeled(s_data,s_data_time,
+            s_predicted_labels[particle_id,:])
+    F = gcf()
+    F.set_size_inches(8.3,2*data.shape[0])
+    savefig(plot_dir + "/" + "pcs_vs_time_predicted" + ext)
+
+    # 2D scatter plot with binary labels
+    if options.binary_label:
+        clf()
+        match = find_best_match(predicted_labels[particle_id,:],true_labels)
+        print predicted_labels[particle_id,:]==match
+        matches = (predicted_labels[particle_id,:]==match)[idx]
+        non_matches = (predicted_labels[particle_id,:]!=match)[idx]
+        subplot(1,2,1)
+        plot(s_data[0,matches],s_data[1,matches],'x')
+        plot(s_data[0,non_matches],s_data[1,non_matches],'.')
+        grid()
+        title("Predicted Labels")
+        axis([-5,5,-5,5])
+        subplot(1,2,2)
+        plot(s_data[0,true_labels[idx]==1],s_data[1,true_labels[idx]==1],'x')
+        plot(s_data[0,true_labels[idx]!=1],s_data[1,true_labels[idx]!=1],'.')
+        axis([-5,5,-5,5])
+        grid()
+        title("True Labels")
+        F = gcf()
+        F.set_size_inches(6,3)
+        savefig(plot_dir + "/" + "scatter_binary" + ext)
 
     # plot of effective sample size
     clf()
@@ -179,7 +266,7 @@ def do_plotting(options):
     xlabel("Time Step")
     ylabel("ESS")
     grid()
-    savefig(plot_dir + "/" + "ess.eps")
+    savefig(plot_dir + "/" + "ess" + ext)
 
     # ISI histogram for each neuron
     clf()
@@ -202,7 +289,7 @@ def do_plotting(options):
         plot(xx,rate*exp(-rate*(xx-2)))
         title("ISI (mean = %.2f)" % mean(isi))
     F = gcf()
-    F.set_size_inches(8.3,11.7)
+    F.set_size_inches(8.3,2*unique_labels.shape[0])
     savefig(plot_dir + "/" + "isi.eps")
     
     
@@ -219,13 +306,13 @@ def do_plotting(options):
             plotting.plot_state_with_data(particle,data,data_time,t)
             title("t = " + str(t))
             grid()
-            savefig(plot_dir + "/" + "cluster_evolution.eps")
+            savefig(plot_dir + "/" + "cluster_evolution" + ext)
 
         # plot of cluster means and variances over time
         clf()
         plotting.plot_pcs_against_time_labeled_with_particle(
                 data,data_time,predicted_labels[0,:],particle)
-        savefig(plot_dir + "/" + "clusters_vs_time.eps")
+        savefig(plot_dir + "/" + "clusters_vs_time" + ext)
 
 
 def compute_label_entropy(labeling):
@@ -298,11 +385,51 @@ def do_statistics(options):
     out.append(descriptive2str(get_descriptive(rand_indices[0,:]))) 
     out.append("Unadjusted: ")
     out.append(descriptive2str(get_descriptive(rand_indices[1,:]))) 
+
+    if options.binary_label:
+        tp = zeros(num_particles)
+        fp = zeros(num_particles)
+        tn = zeros(num_particles)
+        fn = zeros(num_particles)
+        for l in range(num_particles):
+            labels = predicted_labels[l,:]
+            match = find_best_match(labels,true_labels)
+            tp[l] = sum(logical_and(labels==match,true_labels==1))
+            fp[l] = sum(logical_and(labels==match,true_labels!=1))
+            tn[l] = sum(logical_and(labels!=match,true_labels!=1))
+            fn[l] = sum(logical_and(labels!=match,true_labels==1))
+        precision = tp / (tp+fp)
+        recall = tp / (tp+fn)
+        fscore = 2*precision*recall/(precision + recall)
+        accuracy = (tp + tn)/(tp + fp + tn + fn)
+        out.append("\nBinary label")
+        out.append("------------")
+        out.append("Precision: ")
+        out.append(descriptive2str(get_descriptive(precision))) 
+        out.append("Recall: ")
+        out.append(descriptive2str(get_descriptive(recall))) 
+        out.append("Fscore: ")
+        out.append(descriptive2str(get_descriptive(fscore))) 
+        out.append("FP %: ")
+        out.append(descriptive2str(get_descriptive(fp/labels.shape[0]))) 
+        out.append("FN %: ")
+        out.append(descriptive2str(get_descriptive(fn/(fn + tp)))) 
+
     outstr = '\n'.join(out)
     print outstr
     outfile = open(stats_fn,"w")
     outfile.write(outstr)
     outfile.close()
+
+def find_best_match(labeling,true_labeling):
+    """Find the label of the cluster in labeling that has the largest 
+    overlap with the cluster with label "1" in true_labeling."""
+    u = unique(labeling)
+    counts = zeros(u.shape[0],dtype=int32)
+    for i in range(u.shape[0]):
+        c = u[i]
+        counts[i] = sum(logical_and(labeling==c,true_labeling==1))
+    return u[argmax(counts)]
 
 def main():
     options,args = handle_options()

@@ -40,6 +40,7 @@ def plot_pcs_against_time_labeled(data,time,labels):
         subplot(num_dims,1,n+1)
         plot_scatter_2d(vstack([time,data[n,:]]),labels)
         grid()
+        axis([0,max(time),-5,5])
 
 def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
     num_dims = data.shape[0]
