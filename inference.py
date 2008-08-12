@@ -75,6 +75,8 @@ class ParticleFilter(Inference):
             self.particles[i] = Particle(self.T,None,storage_class)
         self.weights = ones(num_particles)/float(num_particles)
         self.effective_sample_size = zeros(self.T)
+        self.filtering_entropy = zeros(self.T)
+        self.current_entropy = zeros(num_particles)
         self.unique_particles = zeros(self.T,dtype=uint32)
         self.__check()
 
@@ -160,7 +162,7 @@ class ParticleFilter(Inference):
                 
                 # normalize to get a proper distribution
                 q = q / sum(q)
-                
+                self.current_entropy[n] = entropy(q)
                 # sample a new label from the discrete distribution q
                 c = rdiscrete(q,1)[0]
                 Z_qc = p_crp[c]/q[c]
@@ -237,6 +239,7 @@ class ParticleFilter(Inference):
             self.weights = self.weights / sum(self.weights)
             Neff = 1/sum(self.weights**2)
             self.effective_sample_size[t] = Neff
+            self.filtering_entropy[t] = mean(self.current_entropy)
             self.before_resampling_callback(self,t)
             self.unique_particles[t] = self.num_particles
             # resample if Neff too small or last time step

@@ -19,6 +19,13 @@ def normalize(x):
     """Normalize a vector such that the sum of its elements is 1."""
     return x/sum(x)
 
+def entropy(p):
+    """Compute the entropy of the discrete distribution p (an array of
+    probabilities summing to 1)."""
+    lnp = N.log2(p)
+    lnp[lnp==-N.inf]=0
+    return -sum(p*lnp)
+
 def isarray(a):
     return isinstance(a, N.ndarray)
 

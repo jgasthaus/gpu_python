@@ -301,7 +301,8 @@ def write_pf_output(pf,outdir,options):
     # save effictive sample size
     savetxt(prefix + '.ess',
             vstack((pf.effective_sample_size,
-                    pf.unique_particles)))
+                    pf.unique_particles,
+                    pf.filtering_entropy)))
 
 def make_prior_plot(model,ip,opts):
     import plotting

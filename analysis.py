@@ -200,10 +200,10 @@ def variation_of_information(labeling1,labeling2):
 
 
 def subsample(data,data_time,labels,options):
+    idx = arange(data_time.shape[0])
     if options.subsample == 0:
-        return data,data_time,labels
+        return data,data_time,labels,idx
     else:
-        idx = arange(data_time.shape[0])
         shuffle(idx)
         idx = idx[:options.subsample]
         return (data[:,idx],data_time[idx],labels[:,idx],idx)
@@ -222,6 +222,7 @@ def do_plotting(options):
     s_data,s_data_time,s_predicted_labels,idx = subsample(
             data,data_time,predicted_labels,options)
     T = data_time.shape[0]
+    ess = load_ess(options)
     
     # Labeled 2D scatter plot of the first two PCs
     clf()
@@ -231,7 +232,8 @@ def do_plotting(options):
 
     # 2D scatter plot with entropy heatmap
     clf()
-    ent = compute_label_entropy(s_predicted_labels)
+    #ent = compute_label_entropy(s_predicted_labels)
+    ent = ess[2,idx]
     certain = ent==0
     uncertain = logical_not(certain)
     if sum(certain)>0:
@@ -248,6 +250,7 @@ def do_plotting(options):
     clf()
     ent = compute_label_entropy(predicted_labels)
     plot(ent,linewidth=0.1)
+    plot(ess[2,:],linewidth=0.3)
     ylabel("Entropy")
     xlabel("Time step")
     F = gcf()
@@ -290,7 +293,6 @@ def do_plotting(options):
 
     # plot of effective sample size
     clf()
-    ess = load_ess(options)
     plot(ess[1,:])
     plot(ess[0,:])
     title("Effective Sample Size")
