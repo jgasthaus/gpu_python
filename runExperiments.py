@@ -8,6 +8,7 @@ import Queue
 from threading import Thread
 from time import sleep
 import pexpect
+import logging
 
 """This script can be used to run a command with several different command
 line options on several computers. The results that are printed on the 
@@ -56,8 +57,14 @@ SSH_WORKERS = {}
 LOCAL_WORKERS = {}
 JOB_QUEUE = Queue.Queue(0)
 RESULT_QUEUE = Queue.Queue(0)
+FAILED = []
 KILLCMD = "killall python; sleep 2; ps xu | grep python"
 
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)-8s %(message)s',
+                    datefmt='%a, %d %b %Y %H:%M:%S',
+                    filename='runExperiments.errors',
+                    filemode='w')
     
 ## hack taken from libsvm's grid.py
 ## to turn queue into a stack
@@ -108,10 +115,11 @@ class Worker(Thread):
                 if result is None: 
                     raise Exception("get no result")
             except Exception, inst:
-                # we failed, put in queue again
-                self.job_queue.put(command)
+                # we failed, put in FAILED list
+                FAILED.append(command)
+                print "command " + command + "FAILED!"
                 self.failures += 1
-                sleep(10) # wait for 10 seconds before we try again
+                sleep(3) # wait for 3 seconds before we try again
                 if self.failures > 3:
                     sleep(60) # wait a little longer
                 if self.failures > 5:
@@ -130,47 +138,46 @@ class Worker(Thread):
     
     def stop(self):
         self.running = False
-        
-def checkResultLine(line):
-    """Checks whether the output line is a valid result. 
-    
-    Result lines consist of at least 16 fields (15 parameter values and one result)
-    """
-    return len(line.split('\t')) > 15 or line.strip() == "Done"
 
-class LocalWorker(Worker):
-    def run_command(self,cmdline):
-        p = pexpect.spawn("nice -n 19 %s" % cmdline)
+    def handle_command(self,cmdline):
+        p = pexpect.spawn(cmdline)
         while True:
-            i = p.expect(["Done","\r\n",pexpect.EOF])
+            i = p.expect(["Done",r"Status: [^\r]+\r\n",pexpect.EOF])
             if i == 1:
-                self.status=p.before
+                self.status=p.after
             elif i==0:
                 self.status = "Done"
                 return "Done"
             else:
-                print pexpect.before
+                logging.error(cmdline)
+                logging.error(p.before)
                 return
+        
+class LocalWorker(Worker):
+
+    def run_command(self,command):
+        cmdline = "/usr/bin/nice -n 19 %s" % command
+        return self.handle_command(cmdline)
 
 class SSHWorker(Worker):
     def __init__(self,host,job_queue,result_queue):
         Worker.__init__(self,host,job_queue,result_queue)
         self.host = host
         self.cwd = CWD
+
     def run_command(self,command):
-        cmdline = 'ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -x %s "cd %s; /usr/bin/nice -n 19 %s"' % \
-          (self.host,self.cwd,command)
-        p = pexpect.spawn(cmdline)
-        while True:
-            i = p.expect(["Done","\r\n",pexpect.EOF])
-            if i == 1:
-                self.status=p.before
-            elif i==0:
-                self.status = "Done"
-                return "Done"
-            else:
-                print pexpect.before
-                return
+        cmdline = ('ssh -o StrictHostKeyChecking=no '
+                   + '-o ConnectTimeout=5 ' 
+                   + '-x %s "cd %s; /usr/bin/nice -n 19 %s"' % 
+                (self.host,self.cwd,command))
+        return self.handle_command(cmdline)
+
+def checkResultLine(line):
+    """Checks whether the output line is a valid result. 
+    
+    Result lines consist of at least 16 fields (15 parameter values and one result)
+    """
+    return len(line.split('\t')) > 15 or line.strip() == "Done"
 
 def usage():
     print """Usage:

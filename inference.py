@@ -260,7 +260,7 @@ class ParticleFilter(Inference):
             remaining = elapsed * (self.T-t)
             finish_time = time.strftime("%a %H:%M:%S",
                     time.localtime(time.time()+remaining))
-            print "%i/%i -- %.1f => %s" % (t,self.T,elapsed,finish_time)
+            print "Status: %i/%i -- %.1f => %s" % (t,self.T,elapsed,finish_time)
             sys.stdout.flush()
             logging.info("One step required " + str(elapsed) + " seconds, " +
                     str(remaining) + " secs remaining.")
