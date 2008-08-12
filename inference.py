@@ -239,7 +239,8 @@ class ParticleFilter(Inference):
             self.effective_sample_size[t] = Neff
             self.before_resampling_callback(self,t)
             self.unique_particles[t] = self.num_particles
-            if Neff < (self.num_particles / 2.):
+            # resample if Neff too small or last time step
+            if (Neff < (self.num_particles / 2.)) or (t == self.T-1):
                 resampled_indices = self.resample_fun(self.weights)
                 self.unique_particles[t] = unique(resampled_indices).shape[0]
                 # assume weights are uniform after resampling
