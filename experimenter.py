@@ -60,6 +60,8 @@ def handle_options():
     o.add_option("-i", "--identifier", type="string",
             help="Unique identifier for this run.", metavar="ID")
     c.add_option("identifier")
+    o.add_option("--suffix", type="string",default="",
+            help="Suffix to add to the identifier")
     o.add_option("-f", "--filename", type="string",
             help="File name of the data file", metavar="FILE")
     c.add_option("filename")
@@ -266,7 +268,7 @@ def prepare_output_dir(options):
     Also create a directory for this identifier inside the output dir.
     """
     outdir = options.output_dir
-    id = options.identifier
+    id = options.identifier + options.suffix
     outdir = P.abspath(outdir)
     if not P.exists(outdir):
         os.mkdir(outdir)
@@ -281,7 +283,7 @@ def prepare_output_dir(options):
     return full_dir
 
 def write_pf_output(pf,outdir,options):
-    id = options.identifier
+    id = options.identifier + options.suffix
     prefix = outdir + "/" + id
     
     # save labeling for all particles

@@ -43,6 +43,8 @@ def handle_options():
     o.add_option("-i", "--identifier", type="string",
             help="Unique identifier for this run.", metavar="ID")
     c.add_option("identifier")
+    o.add_option("--suffix", type="string",default="",
+            help="Suffix to add to the identifier")
     o.add_option("-f", "--filename", type="string",
             help="File name of the data file", metavar="FILE")
     c.add_option("filename")
@@ -75,6 +77,7 @@ def handle_options():
             default="eps",help="Plot output format (eps,pdf,png,jpg).")
 
     (options,args) = c.parse(o)
+    options.identifier = options.identifier + options.suffix
     return (options,args)
 
 def draw_prior(options):
