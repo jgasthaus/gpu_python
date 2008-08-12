@@ -9,6 +9,7 @@ from numpy import *
 import numpy
 from numpy.random import shuffle
 from pylab import *
+from matplotlib.colors import no_norm
 from scipy.misc import comb
 import locale
 from os.path import abspath, exists
@@ -168,6 +169,36 @@ def compute_rand_index(labeling1,labeling2):
     return (AR,RI,MI,HI)
 
 
+def variation_of_information(labeling1,labeling2):
+    """Compute the "Variation of Information" (Meila, 2003) between the two
+    labelings. Each labeling must contain all labels from 0 to max(labeling).
+    """
+    if labeling1.shape[0] != labeling2.shape[0]:
+        raise RuntimeError, "Labeling do not have the same lenghts!"
+    N = labeling1.shape[0]
+    K1 = max(labeling1) + 1
+    K2 = max(labeling2) + 1
+    
+    C = zeros((K1,K2),dtype=float64)
+    for i in range(N):
+        C[labeling1[i],labeling2[i]] += 1
+    P_kk = C / N
+    P_k1 = sum(C,1)/N
+    P_k2 = sum(C,0)/N
+    P_k1.shape = (K1,1)
+    P_k2.shape = (K2,1)
+    X = P_kk * numpy.log2(P_kk/(P_k1*P_k2.T))
+    # enfore 0*log 0 = 0
+    X[isnan(X)] = 0
+    I = sum(X)
+    H1 = -sum(numpy.log2(P_k1)*P_k1)
+    H2 = -sum(numpy.log2(P_k2)*P_k2)
+    return H1 + H2 - 2*I
+
+
+
+
+
 def subsample(data,data_time,labels,options):
     if options.subsample == 0:
         return data,data_time,labels
@@ -278,19 +309,24 @@ def do_plotting(options):
         times = data_time[l==c]
         isi = times[1:] - times[0:-1]
         subplot(unique_labels.shape[0],2,2*i+1)
-        plot(points[0,:],points[1,:],'x')
-        title("Cluster %i" % c)
+        label_colors = array(unique_labels,dtype=float64)/max(unique_labels)
+        colors = ones(sum(l==c))*label_colors[i]
+        scatter(points[0,:],points[1,:],marker=plotting.markers[c],c=colors,
+                cmap=matplotlib.cm.jet,
+                norm=no_norm(),
+                linewidths=(0.3,))
+        title("Cluster %i (weight=%.2f)" % (c,sum(l==c)/float(l.shape[0])))
         grid()
         axis([-5,5,-5,5])
         subplot(unique_labels.shape[0],2,2*i+2)
-        hist(isi,bins=100,range=(0,100),normed=True)
+        hist(isi,bins=100,range=(0,100),normed=True,facecolor='k')
         xx = arange(2,100,0.1)
         rate = 1/mean(isi-2)
         plot(xx,rate*exp(-rate*(xx-2)))
         title("ISI (mean = %.2f)" % mean(isi))
     F = gcf()
     F.set_size_inches(8.3,2*unique_labels.shape[0])
-    savefig(plot_dir + "/" + "isi.eps")
+    savefig(plot_dir + "/" + "isi" + ext)
     
     
     particle = load_particle(options)
@@ -385,6 +421,15 @@ def do_statistics(options):
     out.append(descriptive2str(get_descriptive(rand_indices[0,:]))) 
     out.append("Unadjusted: ")
     out.append(descriptive2str(get_descriptive(rand_indices[1,:]))) 
+    
+    # Variation of information
+    vi = zeros(num_particles)
+    for i in range(num_particles):
+        vi[i] = variation_of_information(predicted_labels[i,:],true_labels)
+    out.append("")
+    out.append("Variation of Information")
+    out.append("------------------------")
+    out.append(descriptive2str(get_descriptive(vi))) 
 
     if options.binary_label:
         tp = zeros(num_particles)
