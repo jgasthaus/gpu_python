@@ -79,7 +79,7 @@ class CaronIndependent(TransitionKernel):
         """
         return self.sample_posterior(self.sample_aux(params,tau),data,tau)
 
-    def p_posterior(self,params,aux_vars,data=None):
+    def p_log_posterior(self,params,aux_vars,data=None):
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
         alpha = self.model.params.a
@@ -102,8 +102,18 @@ class CaronIndependent(TransitionKernel):
         beta_star = beta + 0.5*nvar + (nn*n0*(mu0-data_mean)**2)/(2*(n0+nn))
         p1 = sum(logpgamma(params.lam,alpha+0.5*nn,beta_star))
         p2 = sum(logpnorm(params.mu,mu_star,(nn+n0)*params.lam))
-        return exp(p1+p2)
+        return p1+p2
+
+    def p_posterior(self,params,aux_vars,data=None):
+        return exp(self.p_log_posterior(params,aux_vars,data))
         
+    def p_log_aux_vars(self,params,aux_vars):
+        mu = params.mu
+        lam = params.lam*self.rho
+        lnp = 0
+        for n in aux_vars.shape[1]:
+            lnp += logpnorm(aux_vars[:,n],mu,lam)
+        return lnp
 
     def sample_posterior(self,aux_vars,data,tau=None):
         """Sample from the posterior given the auxiliary variables and data."""
