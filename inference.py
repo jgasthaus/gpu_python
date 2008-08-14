@@ -304,7 +304,7 @@ class GibbsSampler(Inference):
             ms[state.c[t],t] += 1
             dying = where(state.d == t)[0]
             for tau in dying:
-                ms[c[tau],t] -= 1
+                ms[state.c[tau],t] -= 1
 
             for k in where(ms[:,t]>0)[0]:
                 theta = self.state.U[k,t]
@@ -312,11 +312,11 @@ class GibbsSampler(Inference):
                     # old cluster that is still alive
                     # aux | previous theta
                     old_theta = self.state.U[k,t-1]
-                    aux_vars = None # TODO
+                    aux_vars = self.state.aux_vars[t-1,k,:,:]
                     lnp += self.model.kernel.p_log_aux_vars(old_theta,aux_vars) 
 
                     # theta | aux
-                    lnp += self.mode.kernel.p_log_posterior(theta,aux_vars)
+                    lnp += self.model.kernel.p_log_posterior(theta,aux_vars)
                 else:
                     # new cluster
                     # G0(theta)
@@ -330,7 +330,7 @@ class GibbsSampler(Inference):
             # x | c, theta
             c = self.state.c[t]
             theta = self.state.U[c,t]
-            lnp += logpnorm(self.data[:,t],theta.mu,theta.lam) 
+            lnp += sum(logpnorm(self.data[:,t],theta.mu,theta.lam)) 
 
             # d_t
             lnp += self.p_log_deathtime(t)

@@ -111,8 +111,8 @@ class CaronIndependent(TransitionKernel):
         mu = params.mu
         lam = params.lam*self.rho
         lnp = 0
-        for n in aux_vars.shape[1]:
-            lnp += logpnorm(aux_vars[:,n],mu,lam)
+        for n in range(aux_vars.shape[1]):
+            lnp += sum(logpnorm(aux_vars[:,n],mu,lam))
         return lnp
 
     def sample_posterior(self,aux_vars,data,tau=None):
@@ -460,7 +460,8 @@ class GibbsState():
             self.max_clusters,
             model.kernel.D,
             model.kernel.num_aux))
-        print self.aux_vars.shape
+        self.initialize_aux_variables()
+
         for t in range(self.T):
             m = particle.mstore.get_array(t)
             n = m.shape[0]
@@ -494,7 +495,15 @@ class GibbsState():
                 logging.debug("sampling params for cluster %i at time %i" % (c,t))
                 self.U[c,t] = model.kernel.walk_backwards(
                         self.U[c,t+1])
-
+    
+    def initialize_aux_variables(self):
+        """Sample initial value for the auxiliary variables given the rest of
+        of the state. This is done by sampling forward in time."""
+        for t in range(self.T):
+            active = where(self.mstore[:,t]>0)[0]
+            for c in active:
+                self.aux_vars[t,c,:,:] = self.model.kernel.sample_aux(
+                        self.U[c,t])
 
     def __empty_state(self):
         """Set all fields to represent an empty state."""
