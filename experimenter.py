@@ -7,7 +7,7 @@ from cfgparse import ConfigParser
 import cPickle
 import os.path as P
 import os
-
+from os.path import abspath, exists
 from utils import *
 import model
 import inference
@@ -79,8 +79,8 @@ def handle_options():
             metavar="NUM")
     c.add_option('particles')
     o.add_option("-a","--algorithm",dest="algorithm",type="choice",
-            metavar="ALG",choices=("pf","gibbs"),
-            help="Inference algorithm to use; either pf or gibbs.")
+            metavar="ALG",choices=("pf","gibbs","mh"),
+            help="Inference algorithm to use (pf,gibbs,mh).")
     c.add_option('algorithm')
     o.add_option("-d","--dims",dest="use_dims",type="int",
             help="Number of dimensions to use. If 0, all data dimensions will"+
@@ -145,6 +145,7 @@ def handle_options():
 
 
     (options,args) = c.parse(o)
+    options.identfier = options.identifier + options.suffix
     set_kernel_parameters(options)
     return (options,args)
 
@@ -268,7 +269,7 @@ def prepare_output_dir(options):
     Also create a directory for this identifier inside the output dir.
     """
     outdir = options.output_dir
-    id = options.identifier + options.suffix
+    id = options.identifier
     outdir = P.abspath(outdir)
     if not P.exists(outdir):
         os.mkdir(outdir)
@@ -283,7 +284,7 @@ def prepare_output_dir(options):
     return full_dir
 
 def write_pf_output(pf,outdir,options):
-    id = options.identifier + options.suffix
+    id = options.identifier
     prefix = outdir + "/" + id
     
     # save labeling for all particles
@@ -346,6 +347,34 @@ def make_prior_plot(model,ip,opts):
     pylab.savefig("walk_draw.eps")
 
 
+def load_particle(options):
+    prefix = abspath(options.output_dir + "/" + options.identifier + "/" +
+                 options.identifier)
+    fn1 = prefix + ".0.particle"
+    fn2 = prefix + ".particles"
+    if exists(fn1):
+        return cPickle.load(open(fn1,'rb'))
+    elif exists(fn2):
+        return cPickle.load(open(fn2,'rb'))[0]
+    else:
+        return None
+
+def run_mh(data,data_time,m,ip,options):
+    """Run Metropolis-Hastings sampler."""
+    # load partcile for initialization
+    particle = load_particle(options)
+    if particle == None:
+        raise RuntimeError, "Particle not found -- run particle filter first!"
+    state = model.GibbsState(particle,m)
+    state.check_consistency(data_time)
+    sampler = inference.GibbsSampler(
+            data=data,
+            data_time=data_time,
+            params = ip,
+            model=m,
+            state=state) 
+    print sampler.p_log_joint()
+
 
 
 def main():
@@ -363,6 +392,9 @@ def main():
         outdir = prepare_output_dir(opts)
         pf = run_pf(data,data_time,model,ip,opts)
         write_pf_output(pf,outdir,opts)
+    elif opts.algorithm == "mh":
+        run_mh(data,data_time,model,ip,opts)
+    
     print "Done"
 
 

@@ -112,17 +112,6 @@ def load_labels(options):
 
     return labels
 
-def load_particle(options):
-    prefix = abspath(options.output_dir + "/" + options.identifier + "/" +
-                 options.identifier)
-    fn1 = prefix + ".0.particle"
-    fn2 = prefix + ".particles"
-    if exists(fn1):
-        return cPickle.load(open(fn1,'rb'))
-    elif exists(fn2):
-        return cPickle.load(open(fn2,'rb'))[0]
-    else:
-        return None
 
 def load_ess(options):
     fn = abspath(options.output_dir + "/" + options.identifier + "/" +
@@ -334,7 +323,7 @@ def do_plotting(options):
     savefig(plot_dir + "/" + "isi" + ext)
     
     
-    particle = load_particle(options)
+    particle = experimenter.load_particle(options)
     if particle != None:
         ### plots requiring the information from at least one particle
         clf()
