@@ -292,6 +292,57 @@ class GibbsSampler(Inference):
         """Initialize the state of the Gibbs sampler."""
         self.num_clusters = 1 # TODO
 
+    def p_log_joint(self):
+        """Compute the log-joint probability of the current state."""
+        state = self.state
+        ms = zeros_like(self.state.mstore)
+        lnp = 0
+        for t in range(self.T):
+            # construct m up to time t
+            if t > 0:
+                ms[:,t] = ms[:,t-1]
+            ms[state.c[t],t] += 1
+            dying = where(state.d == t)[0]
+            for tau in dying:
+                ms[c[tau],t] -= 1
+
+            for k in where(ms[:,t]>0)[0]:
+                theta = self.state.U[k,t]
+                if t > 0 and ms[k,t-1]>0:
+                    # old cluster that is still alive
+                    # aux | previous theta
+                    old_theta = self.state.U[k,t-1]
+                    aux_vars = None # TODO
+                    lnp += self.model.kernel.p_log_aux_vars(old_theta,aux_vars) 
+
+                    # theta | aux
+                    lnp += self.mode.kernel.p_log_posterior(theta,aux_vars)
+                else:
+                    # new cluster
+                    # G0(theta)
+                    lnp += self.model.p_log_prior_params(theta)
+
+            # c | m
+            # TODO: speed of computation of alive clusters
+            lnp += log(self.p_crp(t,ms[:,t]))
+
+
+            # x | c, theta
+            c = self.state.c[t]
+            theta = self.state.U[c,t]
+            lnp += logpnorm(self.data[:,t],theta.mu,theta.lam) 
+
+            # d_t
+            lnp += self.p_log_deathtime(t)
+        return lnp
+
+    def p_log_deathtime(self,t):
+        """Compute the log probability of the death time of the allocation
+        at time step t."""
+        alive = self.state.d[t] - t - 1
+        return alive*log(self.params.rho) + log(1-self.params.rho)
+
+
     def sweep(self):
         """Do one Gibbs sweep though the data."""
         for t in range(self.T):
