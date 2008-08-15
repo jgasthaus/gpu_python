@@ -373,7 +373,8 @@ def run_mh(data,data_time,m,ip,options):
             params = ip,
             model=m,
             state=state) 
-    print sampler.p_log_joint()
+    for t in range(1,1000):
+        print sampler.mh_sweep()
 
 
 

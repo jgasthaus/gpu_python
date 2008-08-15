@@ -1,5 +1,5 @@
 import numpy as N
-from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32
+from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32, where
 from scipy.special import gammaln
 import numpy.random as R
 import logging
@@ -322,6 +322,18 @@ def rmultinomial(p, N):
     else:
         return R.multinomial(N, p)
     
+# Geometric distribution with probability of survival p
+def rgeometric(p):
+    CHUNKSIZE = 10
+    idx = array([])
+    j = -1
+    q = 1-p
+    while idx.shape[0]==0:
+        r = R.sample(CHUNKSIZE)
+        idx = where(r<q)[0]
+        j = j + 1;
+    return j*CHUNKSIZE + idx[0]
+
 # Discrete distribution
 def rdiscrete(pvals, numsamples=1):
     """Sample from discrete distribution with probabilities given by pvals.

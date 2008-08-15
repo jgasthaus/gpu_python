@@ -287,6 +287,10 @@ class GibbsSampler(Inference):
                 logging.error("State length does not match data length!")
         else:
             self.state = self.__init_state()
+        self.old_lnp = self.p_log_joint()
+        self.lnps = []
+        self.num_accepted = 0
+        self.num_rejected = 0
 
     def __init_state(self):
         """Initialize the state of the Gibbs sampler."""
@@ -334,7 +338,88 @@ class GibbsSampler(Inference):
 
             # d_t
             lnp += self.p_log_deathtime(t)
+        # update mstore
+        self.mstore = ms
         return lnp
+
+
+    def p_log_joint_cs(self):
+        state = self.state
+        ms = zeros_like(self.state.mstore)
+        lnp = 0
+        for t in range(self.T):
+            # construct m up to time t
+            if t > 0:
+                ms[:,t] = ms[:,t-1]
+            ms[state.c[t],t] += 1
+            dying = where(state.d == t)[0]
+            for tau in dying:
+                ms[state.c[tau],t] -= 1
+            lnp += log(self.p_crp(t,ms[:,t]))
+        return lnp
+
+    def mh_sweep(self):
+        """Do one MH sweep through the data, i.e. propose for all parameters
+        once."""
+        for t in range(self.T):
+            # propose new c_t
+            self.propose_c(t)
+            print self.num_accepted + self.num_rejected
+            print ("Acceptance rate: %.2f" % 
+              (self.num_accepted/float(self.num_accepted + self.num_rejected)))
+
+    def propose_c(self,t):
+        # propose from mean occupancy count (not symmetric!)
+        active = where(sum(self.mstore,1)>0)[0]
+        K = active.shape[0]
+        forward_probs = zeros(K+1)
+        forward_probs[0:K] = mean(self.mstore[active,:],1)
+        forward_probs[K] = self.params.alpha
+        forward_probs /= sum(forward_probs) # normalize
+        new_c = rdiscrete(forward_probs)
+        forward_lnq = log(forward_probs[new_c])
+        old_c = self.state.c[t]
+        if new_c == K:
+            # new cluster
+            self.active = hstack((active,self.state.free_labels.pop()))
+        self.state.c[t] = active[new_c]
+
+        # TODO need to sample new d as well ...
+
+        new_ms = self.state.reconstruct_mstore(self.state.c,self.state.d)
+        backward_probs = zeros(active.shape[0])
+        backward_probs[0:K] = mean(new_ms[active,:],1)
+        backward_probs[K] = self.params.alpha
+        backward_probs /= sum(backward_probs) # normalize
+
+
+        if mh_accept(backward_lnq - forward_lnq):
+            return
+        else:
+            self.c[t] = old_c
+
+    def mh_accept(self,q_ratio=0.):
+        """Return true if the current state is to be accepted by the MH
+        algorithm and update self.old_lnp. 
+
+        Params:
+            q_ratio -- the log of the ratio of the proposal 
+                       = log q(z|z*)- log q(z*|z)
+                       = 0 if the proposal is symmetric
+        """
+        lnp = self.p_log_joint()
+        A = min(1,exp(lnp - self.old_lnp + q_ratio))
+        if random_sample() < A:
+            # accept! 
+            self.old_lnp = lnp
+            self.num_accepted += 1
+            return True
+        else:
+            # reject
+            self.num_rejected += 1
+            return False
+
+
 
     def p_log_deathtime(self,t):
         """Compute the log probability of the death time of the allocation
@@ -621,6 +706,21 @@ class GibbsSampler(Inference):
         # FIXME: This is incorrect, as it does not take the future into account!
         self.state.aux_vars[t,c,:,:] = self.model.kernel.sample_aux(
                 self.state.U[c,t-1])
+
+    def log_p_label_posterior_new(self,t):
+        """Compute the conditional probability over allocation variables at
+        time t."""
+        possible = where(sum(state.mstore[:,t:d],1)>0)[0]
+        ln_p_crp = zeros(possible.shape[0]+1)
+        old_c = self.state.c[t]
+        for i in range(possible.shape[0]):
+            c = possible[i]
+            self.state.c[t] = c
+            lnp[i] = self.p_log_joint_cs()
+        self.state.c[t] = self.state.free_labels.pop()
+        lnp[possible.shape[0]] = self.p_log_joint_cs()
+        self.state.free_labels.append(self.state.c[t])
+        self.state.c[t] = old_c
 
 
     def log_p_label_posterior(self,t):
