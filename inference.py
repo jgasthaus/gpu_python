@@ -367,6 +367,9 @@ class GibbsSampler(Inference):
             self.propose_death_time(t)
             print "after death time"
             self.state.check_consistency(self.data_time)
+            self.sample_params(t)
+            self.state.check_consistency(self.data_time)
+            self.propose_auxs(t)
             print self.num_accepted + self.num_rejected
             print ("Acceptance rate: %.2f" % 
               (self.num_accepted/float(self.num_accepted + self.num_rejected)))
@@ -690,6 +693,30 @@ class GibbsSampler(Inference):
                 self.sample_walk(self.state.c[t],t+1,self.state.d[t]) 
                 self.sample_walk_backwards(self.state.c[t],t,0)
 
+    def propose_auxs(self,t):
+        active = self.get_active(t) 
+        for c in active:
+            self.propose_aux(t,c)
+    
+    def propose_aux(self,t,c):
+        """Propose new values for the auxiliary variables after time t."""
+        # forward proposal
+        params = self.state.U[c,t]
+        old_aux = self.state.aux_vars[t,c,:,:]
+        new_aux = self.model.kernel.sample_aux(params)
+        # we can speed this up by only computing the joint for these params
+        # TODO: Compute A as p(new_params|new_aux)/p(new_params|old_aux)
+        self.state.aux_vars[t,c,:,:] = new_aux
+        p_new = self.p_log_joint()
+        A = min(1,exp(p_new - p_old + q_old - q_new))
+        if random_sample() < A:
+            # accept! 
+            self.num_accepted += 1
+        else:
+            # reject
+            self.num_rejected += 1
+            self.state.aux_vars[t,c,:,:] = old_aux
+            
 
 
     def sample_params(self,t):
@@ -707,10 +734,20 @@ class GibbsSampler(Inference):
         if self.state.c[t] == c:
             # there is data associated with this cluster at this time step
             data = self.data[:,t]
+        
+        previous = zeros((self.model.dims,0))
+        next = zeros((self.model.dims,0))
+        
+        if t > 0 and self.state.birthtime[self.state.c[t]] < t:
+            previous = self.state.aux_vars[t-1,c,:,:]
+        next = self.state.aux_vars[t,c,:,:]
+
+        aux_vars = hstack((previous,next))
         self.state.U[c,t] = self.model.kernel.sample_posterior(
-                hstack((self.state.aux_vars[t,c,:,:],
-                       self.state.aux_vars[t+1,c,:,:])),
-                data)
+                aux_vars,
+                data
+                )
+
 
     def sample_walk(self,c,start,stop):
         """Sample new parameters from the walk for cluster c between time 
@@ -723,6 +760,9 @@ class GibbsSampler(Inference):
                     self.state.U[c,tau-1])
             self.state.U[c,tau] = self.model.kernel.sample_posterior(
                     self.state.aux_vars[tau-1,c,:,:])
+        self.state.aux_vars[stop-1,c,:,:] = self.model.kernel.sample_aux(
+                self.state.U[c,stop-1])
+
 
     def sample_walk_backwards(self,c,start,stop):
         """Sample backwards from walk starting at start-1 to stop (inclusive).

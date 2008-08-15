@@ -246,10 +246,13 @@ class DiagonalConjugate(Model):
         else:
             p = sum(logpgamma(lam,self.params.a+0.5*self.nk,self.bn));
         return p
-    
-    def p_posterior(self,params):
-        return exp(self.p_log_posterior_mean(params.mu,params.lam) +
+   
+    def p_log_posterior(params):
+        return (self.p_log_posterior_mean(params.mu,params.lam) +
                    self.p_log_posterior_precision(params.lam))
+
+    def p_posterior(self,params):
+        return exp(self.p_log_posterior(params))
 
     def p_log_prior(self,x):
         """Compute log p(x) (i.e. \int p(x|theta)p(theta) dtheta)."""
