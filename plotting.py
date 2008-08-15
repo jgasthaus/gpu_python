@@ -68,6 +68,16 @@ def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
         ylabel("PC " + str(n+1))
         grid()
 
+def plot_mstore_against_time(particle):
+    mstore = particle.mstore.to_array()
+    for c in range(particle.K):    
+        subplot(particle.K,1,c+1)
+        start = particle.birthtime[c]
+        stop = particle.deathtime[c]
+        if stop == 0: stop = particle.T
+        plot(mstore[c,start:stop])
+        grid()
+
 
 def matlab_plot_3d(data,data_time,labeling):
     from mlabwrap import mlab

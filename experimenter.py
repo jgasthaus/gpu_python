@@ -78,6 +78,11 @@ def handle_options():
             help="Number of particles to use", 
             metavar="NUM")
     c.add_option('particles')
+    o.add_option("--max-clusters", type="int", dest="max_clusters",
+            help="Maximum possible number of clusters.", 
+            metavar="NUM")
+    c.add_option('max_clusters',dest="max_clusters",default=100)
+
     o.add_option("-a","--algorithm",dest="algorithm",type="choice",
             metavar="ALG",choices=("pf","gibbs","mh"),
             help="Inference algorithm to use (pf,gibbs,mh).")
@@ -145,7 +150,7 @@ def handle_options():
 
 
     (options,args) = c.parse(o)
-    options.identfier = options.identifier + options.suffix
+    options.identifier += options.suffix
     set_kernel_parameters(options)
     return (options,args)
 
@@ -240,6 +245,7 @@ def run_pf(data,data_time,model,inference_params,options):
             inference_params,
             options.particles,
             storage_class = options.storage_class,
+            max_clusters = options.max_clusters,
             resample_fun = options.resampling_method,
             )
     pf.run()

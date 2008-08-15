@@ -96,7 +96,11 @@ class FixedSizeStore(Store):
         self.lengths[to] = self.lengths[fro]
 
     def shallow_copy(self):
-        return FixedSizeStore(self.size,self.max_clusters,self.dtype,self)
+        return FixedSizeStore(
+                size=self.size,
+                max_clusters=self.max_clusters,
+                dtype=self.dtype,
+                copy=self)
 
     def __str__(self):
         return str(self.array) + "\nLengths: " + str(self.lengths)
@@ -139,7 +143,11 @@ class FixedSizeStoreRing(Store):
         pass
 
     def shallow_copy(self):
-        return FixedSizeStoreRing(self.size,self.max_clusters,self.dtype,self)
+        return FixedSizeStoreRing(
+                size=self.size,
+                max_clusters=self.max_clusters,
+                dtype=self.dtype,
+                copy=self)
 
     def __str__(self):
         return str(self.array) + "\nLengths: " + str(self.lengths)
@@ -147,7 +155,7 @@ class FixedSizeStoreRing(Store):
     __repr__ = __str__
 
 class ArrayOfLists(Store):
-    def __init__(self,size,dtype=None,copy=None):
+    def __init__(self,size,dtype=None,copy=None,max_clusters=None):
         if copy != None:
             self.size = copy.size
             self.array = copy.array.copy()
@@ -205,7 +213,10 @@ class ArrayOfLists(Store):
     def shallow_copy(self):
         """Make a shallow copy of the array and the lists, but not the
         list contents."""
-        new = ArrayOfLists(self.size,self.dtype,self)
+        new = ArrayOfLists(
+                size=self.size,
+                dtype=self.dtype,
+                copy=self)
         return new
 
 StorageType = FixedSizeStoreRing

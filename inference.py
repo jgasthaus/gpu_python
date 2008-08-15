@@ -60,6 +60,7 @@ class Inference:
 class ParticleFilter(Inference):
     def __init__(self,model,data,data_time,params,num_particles,
                  storage_class=FixedSizeStoreRing,
+                 max_clusters = 100,
                  resample_fun=multinomial_resampling,
                  before_resampling_callback=noop):
         self.model = model
@@ -72,7 +73,7 @@ class ParticleFilter(Inference):
         self.T = data.shape[1]
         self.particles = empty(num_particles,dtype=object)
         for i in range(num_particles):
-            self.particles[i] = Particle(self.T,None,storage_class)
+            self.particles[i] = Particle(self.T,None,storage_class,max_clusters)
         self.weights = ones(num_particles)/float(num_particles)
         self.effective_sample_size = zeros(self.T)
         self.filtering_entropy = zeros(self.T)

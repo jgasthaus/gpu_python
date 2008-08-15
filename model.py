@@ -358,12 +358,13 @@ class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
     """
-    def __init__(self,T,copy=None,storage_class=FixedSizeStoreRing):
+    def __init__(self,T,copy=None,storage_class=FixedSizeStoreRing,max_clusters=100):
         if copy != None:
             self.T = copy.T
             self.c = copy.c.copy()
             self.d = copy.d.copy()
             self.K = copy.K
+            self.max_clusters = copy.max_clusters
             self.mstore = copy.mstore.shallow_copy()
             self.lastspike = copy.lastspike.shallow_copy()
             self.U = copy.U.shallow_copy()
@@ -373,6 +374,7 @@ class Particle(object):
         else:
             self.T = T
             self.storage_class = storage_class
+            self.max_clusters = max_clusters
             # allocation variables for all time steps
             self.c = -1*ones(T,dtype=int16)
             # death times of allocation variables (assume they don't die until they do)
@@ -382,18 +384,21 @@ class Particle(object):
             self.K = 0
             
             # array to store class counts at each time step
-            self.mstore = self.storage_class(T,dtype=int32)
+            self.mstore = self.storage_class(T,dtype=int32,
+                    max_clusters=self.max_clusters)
            
             # storage object for the spike time of the last spike associated 
             # with each cluster for each time step. 
-            self.lastspike = self.storage_class(T,dtype=float64)
+            self.lastspike = self.storage_class(T,dtype=float64,
+                    max_clusters=self.max_clusters)
             
             # cell array to store the sampled values of rho across time
             # self.rhostore = zeros(T);
             
             # Parameter values of each cluster 1...K at each time step 1...T
-            self.U = self.storage_class(T,dtype=object);
-            
+            self.U = self.storage_class(T,dtype=object,
+                    max_clusters=self.max_clusters)
+                    
             # vector to store the birth times of clusters
             self.birthtime = ExtendingList()
             

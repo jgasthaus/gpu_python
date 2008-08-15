@@ -285,8 +285,9 @@ def do_plotting(options):
 
     # plot of effective sample size
     clf()
-    plot(ess[1,:])
-    plot(ess[0,:])
+    plot(ess[1,:],linewidth=0.3)
+    plot(ess[0,:],linewidth=0.3)
+    legend(('Unique Particles', 'ESS'))
     title("Effective Sample Size")
     xlabel("Time Step")
     ylabel("ESS")
@@ -343,6 +344,12 @@ def do_plotting(options):
         plotting.plot_pcs_against_time_labeled_with_particle(
                 data,data_time,predicted_labels[0,:],particle)
         savefig(plot_dir + "/" + "clusters_vs_time" + ext)
+
+        # plot of mstore for each clusters
+        clf()
+        plotting.plot_mstore_against_time(particle)
+        savefig(plot_dir + "/" + "mstore" + ext)
+
 
 
 def compute_label_entropy(labeling):
