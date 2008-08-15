@@ -115,7 +115,7 @@ class CaronIndependent(TransitionKernel):
             lnp += sum(logpnorm(aux_vars[:,n],mu,lam))
         return lnp
 
-    def sample_posterior(self,aux_vars,data,tau=None):
+    def sample_posterior(self,aux_vars,data=None,tau=None):
         """Sample from the posterior given the auxiliary variables and data."""
         n0 = self.model.params.n0
         mu0 = self.model.params.mu0
@@ -556,7 +556,8 @@ class GibbsState():
                 death = birth + active_birth_to_end[0]
             if death != self.deathtime[c]:
                 logging.error("deatime does not contain the first zero after "+
-                        "birth of cluster %i" % c)
+                        "birth of cluster %i (%i!=%i)" % (c,self.deathtime[c],death))
+                print self.mstore[active,:]
             if (any(self.mstore[c,birth:death]==0)):
                 logging.error(("Consistency error: mstore 0 while cluster %i is " +
                         "alive") % c)
@@ -585,8 +586,15 @@ class GibbsState():
         for t in range(self.T):
             lastspike[self.c[t]] = data_time[t]
             if any(self.lastspike[:,t]!=lastspike):
-                logging.error("Consitency error:lastspike incorrect at time %i"
+                logging.error("Consistency error:lastspike incorrect at time %i"
                         % t)
+                logging.error(str(where(self.lastspike[:,t]!=lastspike)))
+
+    def reconstruct_lastspike(self,data_time):
+        lastspike = zeros(self.max_clusters)
+        for t in range(self.T):
+            lastspike[self.c[t]] = data_time[t]
+            self.lastspike[:,t] = lastspike
 
 
     def reconstruct_mstore(self,c,d):

@@ -292,16 +292,21 @@ class GibbsSampler(Inference):
         self.lnps = []
         self.num_accepted = 0
         self.num_rejected = 0
+        self.__init_debugging()
+
+    def __init_debugging(self):
+        pass
 
     def __init_state(self):
         """Initialize the state of the Gibbs sampler."""
         self.num_clusters = 1 # TODO
 
-    def p_log_joint(self):
+    def p_log_joint(self,inc_walk=True,inc_likelihood=True,inc_death=True):
         """Compute the log-joint probability of the current state."""
         state = self.state
         ms = zeros_like(self.state.mstore)
         lnp = 0
+        active = set()
         for t in range(self.T):
             # construct m up to time t
             if t > 0:
@@ -311,60 +316,57 @@ class GibbsSampler(Inference):
             for tau in dying:
                 ms[state.c[tau],t] -= 1
 
-            for k in where(ms[:,t]>0)[0]:
-                theta = self.state.U[k,t]
-                if t > 0 and ms[k,t-1]>0:
-                    # old cluster that is still alive
-                    # aux | previous theta
-                    old_theta = self.state.U[k,t-1]
-                    aux_vars = self.state.aux_vars[t-1,k,:,:]
-                    lnp += self.model.kernel.p_log_aux_vars(old_theta,aux_vars) 
+            if inc_walk:
+                for k in where(ms[:,t]>0)[0]:
+                    theta = self.state.U[k,t]
+                    if t > 0 and ms[k,t-1]>0:
+                        # old cluster that is still alive
+                        # aux | previous theta
+                        old_theta = self.state.U[k,t-1]
+                        aux_vars = self.state.aux_vars[t-1,k,:,:]
+                        lnp += self.model.kernel.p_log_aux_vars(old_theta,aux_vars) 
 
-                    # theta | aux
-                    lnp += self.model.kernel.p_log_posterior(theta,aux_vars)
-                else:
-                    # new cluster
-                    # G0(theta)
-                    lnp += self.model.p_log_prior_params(theta)
+                        # theta | aux
+                        lnp += self.model.kernel.p_log_posterior(theta,aux_vars)
+                    else:
+                        # new cluster
+                        # G0(theta)
+                        lnp += self.model.p_log_prior_params(theta)
 
             # c | m
-            # TODO: speed of computation of alive clusters
-            lnp += log(self.p_crp(t,ms[:,t]))
-
+            # TODO: speed up computation of alive clusters
+            lnp += log(self.p_crp(t,ms,active))
+            active.add(state.c[t])
 
             # x | c, theta
-            c = self.state.c[t]
-            theta = self.state.U[c,t]
-            lnp += sum(logpnorm(self.data[:,t],theta.mu,theta.lam)) 
+            if inc_likelihood:
+                c = self.state.c[t]
+                theta = self.state.U[c,t]
+                lnp += sum(logpnorm(self.data[:,t],theta.mu,theta.lam)) 
 
             # d_t
-            lnp += self.p_log_deathtime(t)
-        # update mstore
-        self.mstore = ms
+            if inc_death:
+                lnp += self.p_log_deathtime(t)
+       
+       # update mstore
+        # self.mstore = ms
         return lnp
 
 
     def p_log_joint_cs(self):
-        state = self.state
-        ms = zeros_like(self.state.mstore)
-        lnp = 0
-        for t in range(self.T):
-            # construct m up to time t
-            if t > 0:
-                ms[:,t] = ms[:,t-1]
-            ms[state.c[t],t] += 1
-            dying = where(state.d == t)[0]
-            for tau in dying:
-                ms[state.c[tau],t] -= 1
-            lnp += log(self.p_crp(t,ms[:,t]))
-        return lnp
+        return self.p_log_joint(False,False,False)
 
     def mh_sweep(self):
         """Do one MH sweep through the data, i.e. propose for all parameters
         once."""
         for t in range(self.T):
             # propose new c_t
-            self.propose_c(t)
+            self.sample_label(t)
+            print "After label"
+            self.state.check_consistency(self.data_time)
+            self.propose_death_time(t)
+            print "after death time"
+            self.state.check_consistency(self.data_time)
             print self.num_accepted + self.num_rejected
             print ("Acceptance rate: %.2f" % 
               (self.num_accepted/float(self.num_accepted + self.num_rejected)))
@@ -441,22 +443,24 @@ class GibbsSampler(Inference):
             #print self.state
             raw_input()
 
-    def p_crp(self,t,m):
+    def p_crp(self,t,ms,active):
         """Compute the conditional probability of the allocation at time 
         t given the table sizes m (and the spike times tau).
         """
-        active = where(m>0)[0]
+        if t == 0:
+            return self.params.alpha
+        state = self.state
+        active = array(list(active))
         num_active = active.shape[0]
         p_crp = zeros(num_active+1)
         p_crp[-1] = self.params.alpha
         for i in range(num_active):
             c = active[i]
-            if (t>0 and 
-                (self.data_time[t] - self.get_last_spike_time(c,t-1) 
-                    < self.params.r_abs)):
+            if (self.data_time[t] - self.get_last_spike_time(c,t-1) 
+                    < self.params.r_abs):
                 p_crp[i] = 0
             else:
-                p_crp[i] = m[c]
+                p_crp[i] = ms[c,t-1]
         p_crp = normalize(p_crp)
         idx = where(active==self.state.c[t])[0]
         if len(idx) > 0:
@@ -469,6 +473,36 @@ class GibbsSampler(Inference):
         """Returns the occurence time of the last spike associated with cluster c 
         before time t."""
         return self.state.lastspike[c,t]
+
+    def propose_death_time(self,t):
+        log_joint_before = self.p_log_joint(False,False)
+        old_d = self.state.d[t]
+        new_d = t + 1 + rgeometric(self.params.rho)
+        if new_d > self.T:
+            new_d = self.T
+        self.state.d[t] = new_d
+        log_joint_after = self.p_log_joint(False,False)
+        A = min(1,exp(log_joint_after - log_joint_before))
+        if random_sample() < A:
+            # accept
+            # if we extended the life of the cluster, sample new params
+            logging.debug("Accepted new death time %i" % new_d)
+            self.num_accepted += 1
+            if new_d > self.state.deathtime[self.state.c[t]]:
+                self.sample_walk(
+                        self.state.c[t],
+                        self.state.deathtime[self.state.c[t]],
+                        new_d
+                        )
+            self.state.deathtime[self.state.c[t]] = max(new_d,
+                    self.state.deathtime[self.state.c[t]])
+            self.state.mstore = self.state.reconstruct_mstore(
+                        self.state.c,
+                        self.state.d)
+        else:
+            # reject
+            self.num_rejected += 1
+            self.state.d[t] = old_d
 
 
     def sample_death_time(self,t):
@@ -590,15 +624,12 @@ class GibbsSampler(Inference):
         logging.debug("Sampling new label at time %i" % t)
         state = self.state
         c_old = state.c[t]
-        res =  self.log_p_label_posterior(t)
-        if res == None:
-            # DCW -- cannot move label!
-            return
-        possible, log_p_crp = res
+        res =  self.log_p_label_posterior_new(t)
+        # if res == None:
+        #     # DCW -- cannot move label!
+        #     return
+        possible, p_crp = res
         num_possible = possible.shape[0]
-        p_crp = empty(num_possible+1,dtype=float64)
-        p_crp[0:num_possible] = log_p_crp
-        p_crp[num_possible] = log(self.params.alpha)
         p_lik = empty(num_possible+1,dtype=float64)
         for i in range(num_possible):
             p_lik[i] = self.model.p_log_likelihood(self.data[:,t],state.U[possible[i],t])
@@ -624,14 +655,22 @@ class GibbsSampler(Inference):
             # update birthtime
             if new_cluster or (t < state.birthtime[c]):
                 state.birthtime[c] = t
-                # no need to update birthtime[c_old] as we cannot move
-                # the first allocation!
+            if state.birthtime[c_old] == t:
+                assocs = where(state.c == c_old)[0]
+                if assocs.shape[0] > 0:
+                    state.birthtime[c_old] = assocs[0]
+                else:
+                    state.birthtime[c_old] = self.T
+                
             
-            # update deathtime, TODO: We can possible make this faster
+            # update deathtime
             if new_cluster:
                 state.deathtime[c] = state.d[t]
             else:
                 state.deathtime[c] = max(state.deathtime[c],state.d[t])
+
+            # update lastspike
+            self.state.reconstruct_lastspike(self.data_time)
 
             deaths_c_old = state.d[state.c==c_old]
             if len(deaths_c_old)==0:  
@@ -680,16 +719,20 @@ class GibbsSampler(Inference):
         """
         logging.debug("Sampling walk forward for %i: %i=>%i" % (c,start,stop))
         for tau in range(start,stop):
-            self.state.U[c,tau] = self.model.walk(
+            self.state.aux_vars[tau-1,c,:,:] = self.model.kernel.sample_aux(
                     self.state.U[c,tau-1])
+            self.state.U[c,tau] = self.model.kernel.sample_posterior(
+                    self.state.aux_vars[tau-1,c,:,:])
 
     def sample_walk_backwards(self,c,start,stop):
         """Sample backwards from walk starting at start-1 to stop (inclusive).
         """
         logging.debug("Sampling walk backwards for %i: %i=>%i" % (c,start,stop))
         for tau in reversed(range(stop,start)):
-            self.state.U[c,tau] = self.model.kernel.walk_backwards(
+            self.state.aux_vars[tau,c,:,:] = self.model.kernel.sample_aux(
                     self.state.U[c,tau+1])
+            self.state.U[c,tau] = self.model.kernel.sample_posterior(
+                    self.state.aux_vars[tau,c,:,:])
 
     def sample_aux_vars(self,t):
         """Sample the auxiliary variables at time step t."""
@@ -711,8 +754,10 @@ class GibbsSampler(Inference):
     def log_p_label_posterior_new(self,t):
         """Compute the conditional probability over allocation variables at
         time t."""
+        state = self.state
+        d = min(state.d[t],state.T) # TODO: min needed?
         possible = where(sum(state.mstore[:,t:d],1)>0)[0]
-        ln_p_crp = zeros(possible.shape[0]+1)
+        lnp = zeros(possible.shape[0]+1)
         old_c = self.state.c[t]
         for i in range(possible.shape[0]):
             c = possible[i]
@@ -722,6 +767,8 @@ class GibbsSampler(Inference):
         lnp[possible.shape[0]] = self.p_log_joint_cs()
         self.state.free_labels.append(self.state.c[t])
         self.state.c[t] = old_c
+        # normalize
+        return (possible,lnp - logsumexp(lnp))
 
 
     def log_p_label_posterior(self,t):

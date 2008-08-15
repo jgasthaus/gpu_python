@@ -368,6 +368,7 @@ def load_particle(options):
 def run_mh(data,data_time,m,ip,options):
     """Run Metropolis-Hastings sampler."""
     # load partcile for initialization
+    import pylab
     particle = load_particle(options)
     if particle == None:
         raise RuntimeError, "Particle not found -- run particle filter first!"
@@ -379,8 +380,14 @@ def run_mh(data,data_time,m,ip,options):
             params = ip,
             model=m,
             state=state) 
-    for t in range(1,1000):
-        print sampler.mh_sweep()
+    lnps = []
+    for t in range(1,10):
+        sampler.mh_sweep()
+        sampler.state.check_consistency(data_time)
+        lnps.append(sampler.p_log_joint(False))
+    pylab.clf()
+    pylab.plot(array(lnps))
+    pylab.show()
 
 
 
