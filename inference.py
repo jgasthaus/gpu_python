@@ -641,8 +641,13 @@ class GibbsSampler(Inference):
             c = possible[choice]
             new_cluster = False
         elif choice == num_possible:
-            c = self.get_free_label()
-            new_cluster = True
+            if sum(state.c == c_old)==1:
+                # singleton, keep label
+                c = c_old
+                new_cluster = False
+            else:
+                c = self.get_free_label()
+                new_cluster = True
         if c != c_old:
             logging.debug("New label t=%i: %i=>%i" % (t,c_old,c))
             state.c[t] = c
@@ -660,7 +665,6 @@ class GibbsSampler(Inference):
                 else:
                     state.birthtime[c_old] = self.T
                 
-            
             # update deathtime
             if new_cluster:
                 state.deathtime[c] = state.d[t]
