@@ -381,10 +381,16 @@ def run_mh(data,data_time,m,ip,options):
             model=m,
             state=state) 
     lnps = []
-    for t in range(1,10):
+    prefix = abspath(options.output_dir + "/" + options.identifier + "/" +
+                 options.identifier)
+    f = open(prefix + ".mh_labels","w")
+    for t in range(1,500):
         sampler.mh_sweep()
         sampler.state.check_consistency(data_time)
         lnps.append(sampler.p_log_joint(False))
+        sampler.state.c.tofile(f,sep=' ')
+        f.write('\n')
+    f.close()
     pylab.clf()
     pylab.plot(array(lnps))
     pylab.show()

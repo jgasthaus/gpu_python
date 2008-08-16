@@ -362,15 +362,10 @@ class GibbsSampler(Inference):
         for t in range(self.T):
             # propose new c_t
             self.sample_label(t)
-            print "After label"
-            self.state.check_consistency(self.data_time)
             self.propose_death_time(t)
-            print "after death time"
-            self.state.check_consistency(self.data_time)
             self.sample_params(t)
-            self.state.check_consistency(self.data_time)
             self.propose_auxs(t)
-            print self.num_accepted + self.num_rejected
+            #print self.num_accepted + self.num_rejected
             print ("Acceptance rate: %.2f" % 
               (self.num_accepted/float(self.num_accepted + self.num_rejected)))
 
@@ -706,16 +701,29 @@ class GibbsSampler(Inference):
         new_aux = self.model.kernel.sample_aux(params)
         # we can speed this up by only computing the joint for these params
         # TODO: Compute A as p(new_params|new_aux)/p(new_params|old_aux)
-        self.state.aux_vars[t,c,:,:] = new_aux
-        p_new = self.p_log_joint()
-        A = min(1,exp(p_new - p_old + q_old - q_new))
+        if self.state.c[t] == c:
+            data = self.data[:,t]
+        else:
+            data = None
+        if t < self.T-1:
+            p_old = self.model.kernel.p_log_posterior(
+                    self.state.U[c,t+1],
+                    old_aux,
+                    data)
+            p_new = self.model.kernel.p_log_posterior(
+                    self.state.U[c,t+1],
+                    new_aux,
+                    data)
+            A = min(1,exp(p_new - p_old))
+        else:
+            A = 1.0
         if random_sample() < A:
             # accept! 
             self.num_accepted += 1
+            self.state.aux_vars[t,c,:,:] = new_aux
         else:
             # reject
             self.num_rejected += 1
-            self.state.aux_vars[t,c,:,:] = old_aux
             
 
 

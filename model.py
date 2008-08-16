@@ -468,7 +468,6 @@ class GibbsState():
             self.max_clusters,
             model.kernel.D,
             model.kernel.num_aux))
-        self.initialize_aux_variables()
 
         for t in range(self.T):
             m = particle.mstore.get_array(t)
@@ -482,6 +481,8 @@ class GibbsState():
             m = particle.U.get_array(t)
             n = m.shape[0]
             self.U[0:n,t] = m
+        
+        self.initialize_aux_variables(model)
         
         # vector to store the birth times of clusters
         self.birthtime = particle.birthtime.to_array(self.max_clusters,dtype=int32)
@@ -504,13 +505,13 @@ class GibbsState():
                 self.U[c,t] = model.kernel.walk_backwards(
                         self.U[c,t+1])
     
-    def initialize_aux_variables(self):
+    def initialize_aux_variables(self,model):
         """Sample initial value for the auxiliary variables given the rest of
         of the state. This is done by sampling forward in time."""
         for t in range(self.T):
             active = where(self.mstore[:,t]>0)[0]
             for c in active:
-                self.aux_vars[t,c,:,:] = self.model.kernel.sample_aux(
+                self.aux_vars[t,c,:,:] = model.kernel.sample_aux(
                         self.U[c,t])
 
     def __empty_state(self):
