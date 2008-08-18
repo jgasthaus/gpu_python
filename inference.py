@@ -735,9 +735,10 @@ class GibbsSampler(Inference):
 
     def sample_params(self,t):
         """Sample new parameters for the clusters at time t."""
-        active = self.get_active(t) 
+        active = where(sum(self.state.mstore,1)>0)[0] 
         for c in active:
-            self.sample_param(t,c)
+            if self.state.deathtime[c] > t:
+                self.sample_param(t,c)
 
     def sample_param(self,t,c):
         """Sample new parameters for cluster c at time. The cluster may be
@@ -790,11 +791,10 @@ class GibbsSampler(Inference):
 
     def sample_aux_vars(self,t):
         """Sample the auxiliary variables at time step t."""
-        active = self.get_active(t)
+        active = where(sum(self.state.mstore,1)>0)[0] 
         for c in active:
-            if self.state.birthtime[c] == t:
-                continue # there is no aux var at cluster birth birth
-            self.sample_aux_var(t,c)
+            if self.deathtime[c] > t and self.state.birthtime[c] != t:
+                self.sample_aux_var(t,c)
 
     def sample_aux_var(self,t,c):
         """Sample the auxiliary variable(s) for cluster c at time t.
