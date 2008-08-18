@@ -12,6 +12,7 @@ from utils import *
 import model
 import inference
 import preprocessing
+import plotting
 
 
 def parse_array_string(str):
@@ -384,10 +385,16 @@ def run_mh(data,data_time,m,ip,options):
     prefix = abspath(options.output_dir + "/" + options.identifier + "/" +
                  options.identifier)
     f = open(prefix + ".mh_labels","w")
-    for t in range(1,500):
+    pylab.ion()
+    for t in range(1,2000):
+        print "t = %i / %i" % (t,2000)
+        # pylab.clf()
+        #plotting.plot_sampler_params(sampler.state)
+        #pylab.draw()
         sampler.mh_sweep()
         sampler.state.check_consistency(data_time)
         lnps.append(sampler.p_log_joint(False))
+        #pylab.plot(sampler.state.mstore)
         sampler.state.c.tofile(f,sep=' ')
         f.write('\n')
     f.close()

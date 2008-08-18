@@ -337,12 +337,14 @@ def do_plotting(options):
             plotting.plot_state_with_data(particle,data,data_time,t)
             title("t = " + str(t))
             grid()
-            savefig(plot_dir + "/" + "cluster_evolution" + ext)
+        F.set_size_inches(8.3,8.3)
+        savefig(plot_dir + "/" + "cluster_evolution" + ext)
 
         # plot of cluster means and variances over time
         clf()
         plotting.plot_pcs_against_time_labeled_with_particle(
                 data,data_time,predicted_labels[0,:],particle)
+        F.set_size_inches(40,8*data.shape[0])
         savefig(plot_dir + "/" + "clusters_vs_time" + ext)
 
         # plot of mstore for each clusters

@@ -492,11 +492,12 @@ class GibbsSampler(Inference):
                         self.state.deathtime[self.state.c[t]],
                         new_d
                         )
-            self.state.deathtime[self.state.c[t]] = max(new_d,
-                    self.state.deathtime[self.state.c[t]])
+            self.state.deathtime[self.state.c[t]] = max(
+                    self.state.d[self.state.c == self.state.c[t]])
             self.state.mstore = self.state.reconstruct_mstore(
                         self.state.c,
                         self.state.d)
+            #print self.state.mstore
         else:
             # reject
             self.num_rejected += 1
@@ -643,6 +644,7 @@ class GibbsSampler(Inference):
         elif choice == num_possible:
             if sum(state.c == c_old)==1:
                 # singleton, keep label
+                logging.debug("Keeping label for singleton %i" % c_old)
                 c = c_old
                 new_cluster = False
             else:
@@ -709,7 +711,7 @@ class GibbsSampler(Inference):
             data = self.data[:,t]
         else:
             data = None
-        if t < self.T-1:
+        if t < self.T-1 and self.state.deathtime[c]!=t+1:
             p_old = self.model.kernel.p_log_posterior(
                     self.state.U[c,t+1],
                     old_aux,

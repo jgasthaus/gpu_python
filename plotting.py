@@ -68,6 +68,32 @@ def plot_pcs_against_time_labeled_with_particle(data,time,labels,particle):
         ylabel("PC " + str(n+1))
         grid()
 
+def plot_sampler_params(state):
+    active = where(sum(state.mstore,1)>0)[0]
+    num_dims = state.aux_vars.shape[2]
+    mean_cluster_size = mean(state.mstore[state.mstore>0])
+    for n in range(num_dims):
+        subplot(num_dims,1,n+1)
+        for c in active:    
+            #start = state.birthtime[c]
+            start = 0
+            stop = state.deathtime[c]
+            if stop == 0: stop = state.T
+            length = stop-start
+            mus = N.zeros(length)
+            lams = N.zeros(length)
+            for i in range(length):
+                t = range(start,stop)[i]
+                mus[i] = state.U[c,t].mu[n]
+                lams[i] = state.U[c,t].lam[n]
+            lw = mean(state.mstore[c,start:stop])/mean_cluster_size*0.5
+            plot(arange(start,stop),mus,linewidth=0.3)
+            #errorbar(arange(start,stop),mus,sqrt(1/lams),
+            #    linewidth=lw,elinewidth=lw)
+        xlabel("Time")
+        ylabel("PC " + str(n+1))
+        grid()
+
 def plot_mstore_against_time(particle):
     mstore = particle.mstore.to_array()
     for c in range(particle.K):    
@@ -153,7 +179,7 @@ def plot_state_with_data(particle,data,data_time,t):
         plot(data[0,idx],data[1,idx],'x',color=color)
         U = particle.U.get(t,c)
         # print t,c,U.mu, U.lam
-        plot_diagonal_gaussian(U.mu,U.lam,color=color)
+        plot_diagonal_gaussian(U.mu[0:2],U.lam[0:2],color=color)
         axis([-5, 5, -5, 5])
     
     
