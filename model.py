@@ -156,14 +156,13 @@ class CaronIndependent(TransitionKernel):
         return (params,p1/p2)
 
 
-
-
 class Model(object):
     pass
 
 class DiagonalConjugate(Model):
     
-    def __init__(self,hyper_params,kernelClass=MetropolisWalk,kernelParams=(0.1,0.001)):
+    def __init__(self,hyper_params,kernelClass=MetropolisWalk,
+            kernelParams=(0.1,0.001)):
         self.params = hyper_params
         self.dims = self.params.dims
         self.empty = True
@@ -204,9 +203,11 @@ class DiagonalConjugate(Model):
             self.nvar =  (data - samplemean)**2
             self.nk = data.shape[1]
             self.nn = self.params.n0 + self.nk
-            self.mun = (self.params.n0 * self.params.mu0 + self.nk * self.mean)/(self.nn)
-            self.bn = self.params.b + 0.5*self.nvar + 0.5/self.nn*self.nk*self.params.n0* \
-                        (self.params.mu0 - self.mean)**2;
+            self.mun = (self.params.n0 * self.params.mu0 + 
+                        self.nk * self.mean)/(self.nn)
+            self.bn = (self.params.b + 0.5*self.nvar + 
+                       0.5/self.nn*self.nk*self.params.n0* 
+                      (self.params.mu0 - self.mean)**2)
             self.ibn = 1/self.bn;
         self.empty = False
 
@@ -264,8 +265,9 @@ class DiagonalConjugate(Model):
         return exp(self.p_log_prior(x))
     
     def p_log_prior_params(self,params):
-        return sum(logpnorm(params.mu,self.params.mu0,self.params.n0 * params.lam)) + \
-               sum(logpgamma(params.lam,self.params.a,self.params.b));
+        return (
+            sum(logpnorm(params.mu,self.params.mu0,self.params.n0 * params.lam))
+            + sum(logpgamma(params.lam,self.params.a,self.params.b)))
 
     def p_prior_params(self,params):
         return exp(self.p_log_prior_params(params))
@@ -361,7 +363,8 @@ class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
     """
-    def __init__(self,T,copy=None,storage_class=FixedSizeStoreRing,max_clusters=100):
+    def __init__(self,T,copy=None,storage_class=FixedSizeStoreRing,
+                 max_clusters=100):
         if copy != None:
             self.T = copy.T
             self.c = copy.c.copy()
@@ -380,7 +383,8 @@ class Particle(object):
             self.max_clusters = max_clusters
             # allocation variables for all time steps
             self.c = -1*ones(T,dtype=int16)
-            # death times of allocation variables (assume they don't die until they do)
+            # death times of allocation variables (assume they 
+            # don't die until they do)
             self.d = T * ones(T,dtype=uint32)
             
             # total number of clusters in this particle up to the current time
@@ -405,7 +409,8 @@ class Particle(object):
             # vector to store the birth times of clusters
             self.birthtime = ExtendingList()
             
-            # vector to store the death times of allocation variables (0 if not dead)
+            # vector to store the death times of allocation variables 
+            # (0 if not dead)
             self.deathtime = ExtendingList() 
 
     def shallow_copy(self):
@@ -485,23 +490,27 @@ class GibbsState():
         self.initialize_aux_variables(model)
         
         # vector to store the birth times of clusters
-        self.birthtime = particle.birthtime.to_array(self.max_clusters,dtype=int32)
+        self.birthtime = particle.birthtime.to_array(self.max_clusters,
+                                                     dtype=int32)
         
         # vector to store the death times of clusters (0 if not dead)
-        self.deathtime = particle.deathtime.to_array(self.max_clusters,dtype=int32) 
+        self.deathtime = particle.deathtime.to_array(self.max_clusters,
+                                                     dtype=int32) 
         self.deathtime[self.deathtime==0] = self.T # TODO: Needed?
         
         # determine active clusters
         active = where(sum(self.mstore,1)>0)[0]
 
         # compute free labels
-        self.free_labels = deque(reversed(list(set(range(self.max_clusters))-set(active))))
+        self.free_labels = deque(reversed(list(set(range(self.max_clusters))
+                                 -set(active))))
 
         # all clusters must have parameters from time 0 to their death
         # -> sample them from their birth backwards
         for c in active:
             for t in reversed(range(0,self.birthtime[c])):
-                logging.debug("sampling params for cluster %i at time %i" % (c,t))
+                logging.debug("sampling params for cluster %i at time %i" 
+                               % (c,t))
                 self.U[c,t] = model.kernel.walk_backwards(
                         self.U[c,t+1])
     
@@ -560,22 +569,24 @@ class GibbsState():
                 death = birth + active_birth_to_end[0]
             if death != self.deathtime[c]:
                 logging.error("deatime does not contain the first zero after "+
-                        "birth of cluster %i (%i!=%i)" % (c,self.deathtime[c],death))
+                        "birth of cluster %i (%i!=%i)" % 
+                        (c,self.deathtime[c],death))
                 print self.mstore[active,:]
             if (any(self.mstore[c,birth:death]==0)):
-                logging.error(("Consistency error: mstore 0 while cluster %i is " +
-                        "alive") % c)
+                logging.error(("Consistency error: mstore 0 while " +
+                   "cluster %i is alive") % c)
             if any(self.mstore[c,0:birth]>0):
-                logging.error(("Consistency error: mstore > 0 while cluster %i is " +
-                        "not yet born") % c)
+                logging.error(("Consistency error: mstore > 0 while " +
+                               "cluster %i is not yet born") % c)
             if any(self.mstore[c,death:]>0):
-                logging.error(("Consistency error: mstore > 0 while cluster %i is " +
-                        "already dead!") % c)
+                logging.error(("Consistency error: mstore > 0 while "
+                               "cluster %i is already dead!") % c)
 
         # check 3) we can reconstruct mstore from c and d
         new_ms = self.reconstruct_mstore(self.c,self.d)
         if any(self.mstore != new_ms):
-            logging.error("Consitency error: Cannot reconstruct mstore from c and d")
+            logging.error("Consitency error: Cannot reconstruct " +
+                          "mstore from c and d")
 
         # check 4) 
         # birth = where(self.mstore[c,:]>0)[0][0]
@@ -590,8 +601,8 @@ class GibbsState():
         for t in range(self.T):
             lastspike[self.c[t]] = data_time[t]
             if any(self.lastspike[:,t]!=lastspike):
-                logging.error("Consistency error:lastspike incorrect at time %i"
-                        % t)
+                logging.error("Consistency error:lastspike incorrect at " + 
+                              "time %i" % t)
                 logging.error(str(where(self.lastspike[:,t]!=lastspike)))
 
     def reconstruct_lastspike(self,data_time):
@@ -623,6 +634,3 @@ class GibbsState():
         if include_U:
             out.append('U: ' + str(self.U)+'\n')
         return ''.join(out)
-
-
-
