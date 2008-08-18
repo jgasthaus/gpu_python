@@ -389,8 +389,8 @@ def run_mh(data,data_time,m,ip,options):
     for t in range(1,2000):
         print "t = %i / %i" % (t,2000)
         # pylab.clf()
-        #plotting.plot_sampler_params(sampler.state)
-        #pylab.draw()
+        plotting.plot_sampler_params(sampler.state)
+        pylab.draw()
         sampler.mh_sweep()
         sampler.state.check_consistency(data_time)
         lnps.append(sampler.p_log_joint(False))

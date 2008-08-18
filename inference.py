@@ -624,9 +624,6 @@ class GibbsSampler(Inference):
         state = self.state
         c_old = state.c[t]
         res =  self.log_p_label_posterior_new(t)
-        # if res == None:
-        #     # DCW -- cannot move label!
-        #     return
         possible, p_crp = res
         num_possible = possible.shape[0]
         p_lik = empty(num_possible+1,dtype=float64)

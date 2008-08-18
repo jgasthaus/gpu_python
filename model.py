@@ -487,7 +487,6 @@ class GibbsState():
             n = m.shape[0]
             self.U[0:n,t] = m
         
-        self.initialize_aux_variables(model)
         
         # vector to store the birth times of clusters
         self.birthtime = particle.birthtime.to_array(self.max_clusters,
@@ -508,11 +507,15 @@ class GibbsState():
         # all clusters must have parameters from time 0 to their death
         # -> sample them from their birth backwards
         for c in active:
-            for t in reversed(range(0,self.birthtime[c])):
-                logging.debug("sampling params for cluster %i at time %i" 
-                               % (c,t))
-                self.U[c,t] = model.kernel.walk_backwards(
-                        self.U[c,t+1])
+            logging.debug("sampling params for cluster %i at time %i" 
+                           % (c,t))
+            for tau in reversed(range(0,self.birthtime[c])):
+                self.aux_vars[tau,c,:,:] = model.kernel.sample_aux(
+                        self.U[c,tau+1])
+                self.U[c,tau] = model.kernel.sample_posterior(
+                        self.aux_vars[tau,c,:,:])
+
+        self.initialize_aux_variables(model)
     
     def initialize_aux_variables(self,model):
         """Sample initial value for the auxiliary variables given the rest of
@@ -520,8 +523,9 @@ class GibbsState():
         for t in range(self.T):
             active = where(self.mstore[:,t]>0)[0]
             for c in active:
-                self.aux_vars[t,c,:,:] = model.kernel.sample_aux(
-                        self.U[c,t])
+                if t >= self.birthtime[c]:
+                    self.aux_vars[t,c,:,:] = model.kernel.sample_aux(
+                            self.U[c,t])
 
     def __empty_state(self):
         """Set all fields to represent an empty state."""
