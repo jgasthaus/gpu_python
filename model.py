@@ -248,7 +248,7 @@ class DiagonalConjugate(Model):
             p = sum(logpgamma(lam,self.params.a+0.5*self.nk,self.bn));
         return p
    
-    def p_log_posterior(params):
+    def p_log_posterior(self,params):
         return (self.p_log_posterior_mean(params.mu,params.lam) +
                    self.p_log_posterior_precision(params.lam))
 
