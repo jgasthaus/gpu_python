@@ -479,7 +479,7 @@ class GibbsSampler(Inference):
         if new_d > self.T:
             new_d = self.T
         self.state.d[t] = new_d
-        log_joint_after = self.p_log_joint(False,False)
+        log_joint_after = self.p_log_joint(False,False,False)
         A = min(1,exp(log_joint_after - log_joint_before))
         if random_sample() < A:
             # accept
