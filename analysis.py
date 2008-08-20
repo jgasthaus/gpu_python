@@ -77,6 +77,8 @@ def handle_options():
     o.add_option("--plot-fmt",type="choice",choices=("eps","pdf","png","jpg"),
             dest="output_format",
             default="eps",help="Plot output format (eps,pdf,png,jpg).")
+    o.add_option("--label-file",type="string",dest="label_file",default="",
+            help="File containing the labels.")
 
     (options,args) = c.parse(o)
     options.identifier = options.identifier + options.suffix
@@ -90,8 +92,11 @@ def load_labels(options):
     global LABELS
     if LABELS != None:
         return LABELS
-    fn = abspath(options.output_dir + "/" + options.identifier + "/" +
-                 options.identifier + ".label")
+    if options.label_file != "":
+        fn = abspath(options.label_file)
+    else:
+        fn = abspath(options.output_dir + "/" + options.identifier + "/" +
+                     options.identifier + ".label")
     print "Loading labels ..."
     labels = loadtxt(fn,dtype=int32)
     if options.merge_noise>0:
@@ -192,7 +197,7 @@ def variation_of_information(labeling1,labeling2):
     I = sum(X)
     H1 = -sum(numpy.log2(P_k1)*P_k1)
     H2 = -sum(numpy.log2(P_k2)*P_k2)
-    return H1 + H2 - 2*I
+    return (H1 + H2 - 2*I)/numpy.log2(N)
 
 
 def subsample(data,data_time,labels,options):
@@ -273,9 +278,8 @@ def do_plotting(options):
     # 2D scatter plot of PCs against time for RPV candidates
     clf()
     isi = data_time[1:]-data_time[:-1]
-    idx = where(isi < 2)[0]
+    idx = where(isi < 2)[0] + 1
     idx = hstack((idx,idx-1))
-    
     plotting.plot_pcs_against_time_labeled(data[:,idx],data_time[idx],
             predicted_labels[particle_id,idx])
     F = gcf()
