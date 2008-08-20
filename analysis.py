@@ -72,6 +72,8 @@ def handle_options():
     o.add_option("--binary-label",action="store_true",default=False,
             dest="binary_label",help="The label is binary: compare only the " +
             "cluster with the largest overlap to the one with label 1.")
+    o.add_option("--true-labels",action="store_true",default=False,
+            dest="true_labels",help="Use the true labels for plotting. ")
     o.add_option("--plot-fmt",type="choice",choices=("eps","pdf","png","jpg"),
             dest="output_format",
             default="eps",help="Plot output format (eps,pdf,png,jpg).")
@@ -116,7 +118,12 @@ def load_labels(options):
 def load_ess(options):
     fn = abspath(options.output_dir + "/" + options.identifier + "/" +
                  options.identifier + ".ess")
-    return loadtxt(fn)
+    ess = loadtxt(fn)
+    if ess.shape[0] != 3:
+        tmp = zeros((3,ess.shape[1]))
+        tmp[0:2,:] = ess
+        ess = tmp
+    return ess
     
 
 
@@ -188,9 +195,6 @@ def variation_of_information(labeling1,labeling2):
     return H1 + H2 - 2*I
 
 
-
-
-
 def subsample(data,data_time,labels,options):
     idx = arange(data_time.shape[0])
     if options.subsample == 0:
@@ -209,8 +213,14 @@ def do_plotting(options):
     plot_dir = options.output_dir + "/" + options.identifier + "/plots"
     if not exists(plot_dir):
         mkdir(plot_dir)
-    predicted_labels = load_labels(options)
     data,data_time,true_labels = experimenter.load_data(options)
+    if options.true_labels:
+        predicted_labels = true_labels
+        predicted_labels.shape = (1,predicted_labels.shape[0])
+        ext = "_true" + ext
+    else:
+        predicted_labels = load_labels(options)
+
     s_data,s_data_time,s_predicted_labels,idx = subsample(
             data,data_time,predicted_labels,options)
     T = data_time.shape[0]
@@ -257,8 +267,21 @@ def do_plotting(options):
     plotting.plot_pcs_against_time_labeled(s_data,s_data_time,
             s_predicted_labels[particle_id,:])
     F = gcf()
-    F.set_size_inches(8.3,2*data.shape[0])
+    F.set_size_inches(8.3,4*data.shape[0])
     savefig(plot_dir + "/" + "pcs_vs_time_predicted" + ext)
+
+    # 2D scatter plot of PCs against time for RPV candidates
+    clf()
+    isi = data_time[1:]-data_time[:-1]
+    idx = where(isi < 2)[0]
+    idx = hstack((idx,idx-1))
+    
+    plotting.plot_pcs_against_time_labeled(data[:,idx],data_time[idx],
+            predicted_labels[particle_id,idx])
+    F = gcf()
+    F.set_size_inches(8.3,4*data.shape[0])
+    savefig(plot_dir + "/" + "pcs_vs_time_rpv" + ext)
+
 
     # 2D scatter plot with binary labels
     if options.binary_label:
