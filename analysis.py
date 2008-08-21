@@ -88,6 +88,14 @@ def draw_prior(options):
     # make plot for draws from the prior
     pass # May  have to move this to experimenter
 
+def map_labels(labels):
+    """Map an arbitrary labeling so that in contains labels in 0,...,K."""
+    avail = unique(labels)
+    mapping = -1*ones(max(avail)+1)
+    for i in range(avail.shape[0]):
+        mapping[avail[i]] = i
+    return take(mapping,labels)
+
 def load_labels(options):
     global LABELS
     if LABELS != None:
@@ -99,6 +107,8 @@ def load_labels(options):
                      options.identifier + ".label")
     print "Loading labels ..."
     labels = loadtxt(fn,dtype=int32)
+    if len(labels.shape)==1:
+        labels.shape = (1,labels.shape[0])
     if options.merge_noise>0:
         print "Merging noise clusters ..."
         unique_labels = unique(labels)
@@ -113,10 +123,9 @@ def load_labels(options):
             for n in range(labels.shape[1]):
                 labels[l,n] = mapping[labels[l,n]]
         print "Done."
+    for n in range(labels.shape[0]):
+        labels[n,:] = map_labels(labels[n,:])
     LABELS = labels
-
-
-
     return labels
 
 
@@ -195,9 +204,14 @@ def variation_of_information(labeling1,labeling2):
     # enfore 0*log 0 = 0
     X[isnan(X)] = 0
     I = sum(X)
-    H1 = -sum(numpy.log2(P_k1)*P_k1)
-    H2 = -sum(numpy.log2(P_k2)*P_k2)
-    return (H1 + H2 - 2*I)/numpy.log2(N)
+    H1tmp = numpy.log2(P_k1)*P_k1
+    H1tmp[isnan(H1tmp)] = 0
+    H1 = -sum(H1tmp)
+    H2tmp = numpy.log2(P_k2)*P_k2
+    H2tmp[isnan(H2tmp)] = 0
+    H2 = -sum(H2tmp)
+    VI = H1 + H2 - 2*I
+    return VI/numpy.log2(N)
 
 
 def subsample(data,data_time,labels,options):
@@ -278,10 +292,10 @@ def do_plotting(options):
     # 2D scatter plot of PCs against time for RPV candidates
     clf()
     isi = data_time[1:]-data_time[:-1]
-    idx = where(isi < 2)[0] + 1
-    idx = hstack((idx,idx-1))
-    plotting.plot_pcs_against_time_labeled(data[:,idx],data_time[idx],
-            predicted_labels[particle_id,idx])
+    rpvs = where(isi < 2)[0] + 1
+    rpvs = hstack((rpvs,rpvs-1))
+    plotting.plot_pcs_against_time_labeled(data[:,rpvs],data_time[rpvs],
+            predicted_labels[particle_id,rpvs])
     F = gcf()
     F.set_size_inches(8.3,4*data.shape[0])
     savefig(plot_dir + "/" + "pcs_vs_time_rpv" + ext)
@@ -291,7 +305,6 @@ def do_plotting(options):
     if options.binary_label:
         clf()
         match = find_best_match(predicted_labels[particle_id,:],true_labels)
-        print predicted_labels[particle_id,:]==match
         matches = (predicted_labels[particle_id,:]==match)[idx]
         non_matches = (predicted_labels[particle_id,:]!=match)[idx]
         subplot(1,2,1)
@@ -504,7 +517,9 @@ def find_best_match(labeling,true_labeling):
     for i in range(u.shape[0]):
         c = u[i]
         counts[i] = sum(logical_and(labeling==c,true_labeling==1))
-    return u[argmax(counts)]
+    best_match = u[argmax(counts)]
+    print "best match is: " + str(best_match)
+    return best_match 
 
 def main():
     options,args = handle_options()
