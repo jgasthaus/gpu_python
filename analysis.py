@@ -278,6 +278,8 @@ def do_plotting(options):
     F.set_size_inches(12,3)
     title("Label Entropy vs. time steps")
     grid()
+    F = gcf()
+    F.set_size_inches(6,2)
     savefig(plot_dir + "/" + "entropy" + ext)
 
 
@@ -479,9 +481,12 @@ def do_statistics(options):
         fp = zeros(num_particles)
         tn = zeros(num_particles)
         fn = zeros(num_particles)
+        rpvs = zeros(num_particles)
         for l in range(num_particles):
             labels = predicted_labels[l,:]
             match = find_best_match(labels,true_labels)
+            times = data_time[labels==match]
+            rpvs[l]= sum(times[1:]-times[:-1]<2)
             tp[l] = sum(logical_and(labels==match,true_labels==1))
             fp[l] = sum(logical_and(labels==match,true_labels!=1))
             tn[l] = sum(logical_and(labels!=match,true_labels!=1))
@@ -502,6 +507,9 @@ def do_statistics(options):
         out.append(descriptive2str(get_descriptive(fp/labels.shape[0]))) 
         out.append("FN %: ")
         out.append(descriptive2str(get_descriptive(fn/(fn + tp)))) 
+        out.append("RPVs: ")
+        out.append(descriptive2str(get_descriptive(rpvs))) 
+        out.append("MAP: FP: %.4f; FN: %.4f; FScore: %.4f; RPV: %i" % (fp[0]/labels.shape[0], fn[0]/(fn[0] + tp[0]),fscore[0],rpvs[0]))
 
     outstr = '\n'.join(out)
     print outstr

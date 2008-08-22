@@ -335,6 +335,14 @@ class DiagonalConjugateHyperParams(object):
         else: 
             self.dims = 1
 
+    def compute_stats(self):
+        e_mu = self.mu0
+        v_mu = self.b / (self.n0*(self.a-1))
+        e_lam = self.a/self.b
+        v_lam = self.a/(self.b**2)
+        out = ("E[mu] = %.3f, V[mu] = %.3f, E[lam] = %.3f, V[lam] = %.3f"
+                % (e_mu,v_mu,e_lam,v_lam))
+        return out
 
     def __str__(self):
         out = ['Model hyperparameters:\n']

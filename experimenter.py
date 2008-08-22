@@ -115,8 +115,9 @@ def handle_options():
     c.add_option("kernel_class",type="choice",
             choices=("caron","metropolis"), check=get_kernel_class,
             help="Transition kernel; either 'caron' or 'metropolis'")
-    c.add_option("aux_vars",type="int",
+    o.add_option("--aux-vars",type="int",dest="aux_vars",
             help="Number of auxiliary variables to use in the Caron kernel.")
+    c.add_option("aux_vars",dest="aux_vars")
     c.add_option("variance_factor",type="float",
             help="Variance scaling factor to use in the Caron kernel.")
     c.add_option("mean_sd",type="float",
