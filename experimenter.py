@@ -13,6 +13,7 @@ import model
 import inference
 import preprocessing
 import plotting
+import time
 
 
 def parse_array_string(str):
@@ -320,12 +321,12 @@ def make_prior_plot(model,ip,opts):
     import pylab
     NUM_CLUSTERS = 5
     NUM_SAMPLES = 30
-    NUM_SUBPLOTS = 6
+    NUM_SUBPLOTS = 3
     WALK_LENGTH = 1000
     data = zeros((model.dims,NUM_CLUSTERS*NUM_SAMPLES))
     labels = zeros(NUM_CLUSTERS*NUM_SAMPLES,dtype=int32)
     for i in range(NUM_SUBPLOTS):
-        pylab.subplot(3,2,i+1)
+        pylab.subplot(1,3,i+1)
         for n in range(NUM_CLUSTERS):
             params = model.sample_prior()
             for s in range(NUM_SAMPLES):
@@ -337,7 +338,7 @@ def make_prior_plot(model,ip,opts):
         pylab.grid()
         pylab.axis([-5,5,-5,5])
     F = pylab.gcf()
-    F.set_size_inches(8.3,11.7)
+    F.set_size_inches(6,1.8)
     pylab.savefig("prior_draw.eps")
 
     pylab.clf()
@@ -386,23 +387,31 @@ def run_mh(data,data_time,m,ip,options):
     prefix = abspath(options.output_dir + "/" + options.identifier + "/" +
                  options.identifier)
     f = open(prefix + ".mh_labels","w")
-    pylab.ion()
-    for t in range(1,2000):
-        print "t = %i / %i" % (t,2000)
-        pylab.clf()
+    #pylab.ion()
+    T = 2000
+    for t in range(1,T):
+        #print "t = %i / %i" % (t,2000)
+        #pylab.clf()
         #plotting.plot_sampler_params(sampler.state)
-        pylab.plot(array(lnps))
-        pylab.draw()
+        #pylab.plot(array(lnps))
+        #pylab.draw()
+        start_t = time.time()
         sampler.mh_sweep()
-        sampler.state.check_consistency(data_time)
+        #sampler.state.check_consistency(data_time)
         lnps.append(sampler.p_log_joint())
         #pylab.plot(sampler.state.mstore)
         sampler.state.c.tofile(f,sep=' ')
         f.write('\n')
+        end_t = time.time()
+        elapsed = end_t - start_t
+        remaining = elapsed * (T-t)
+        finish_time = time.strftime("%a %H:%M:%S",
+                time.localtime(time.time()+remaining))
+        print "Status: %i/%i -- %.1f => %s" % (t,T,elapsed,finish_time)
     f.close()
-    pylab.clf()
-    pylab.plot(array(lnps))
-    pylab.show()
+    #pylab.clf()
+    #pylab.plot(array(lnps))
+    #pylab.show()
 
 
 

@@ -366,8 +366,8 @@ class GibbsSampler(Inference):
             self.sample_params(t)
             self.propose_auxs(t)
             #print self.num_accepted + self.num_rejected
-            print ("Acceptance rate: %.2f" % 
-              (self.num_accepted/float(self.num_accepted + self.num_rejected)))
+            #print ("Acceptance rate: %.2f" % 
+            #  (self.num_accepted/float(self.num_accepted + self.num_rejected)))
 
     def propose_c(self,t):
         # propose from mean occupancy count (not symmetric!)

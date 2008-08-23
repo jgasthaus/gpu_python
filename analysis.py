@@ -36,6 +36,8 @@ def handle_options():
             help="Be verbose.",default=False)
     o.add_option("--debug", action="store_true", dest="debug",
             help="Print extra debugging info to STDOUT", default=False)
+    o.add_option("--quiet", action="store_true", dest="quiet",
+            help="Only print the bare minimum information.",default=False)
     o.add_option("--noplot", action="store_true", dest="no_plot",
             help="Disable creation of plots entirely.", default=False)
     o.add_option("--nostats", action="store_true", dest="no_stats",
@@ -105,7 +107,6 @@ def load_labels(options):
     else:
         fn = abspath(options.output_dir + "/" + options.identifier + "/" +
                      options.identifier + ".label")
-    print "Loading labels ..."
     labels = loadtxt(fn,dtype=int32)
     if len(labels.shape)==1:
         labels.shape = (1,labels.shape[0])
@@ -475,7 +476,8 @@ def do_statistics(options):
     out.append("Variation of Information")
     out.append("------------------------")
     out.append(descriptive2str(get_descriptive(vi))) 
-
+    out.append("MAP: VI: %.4f; Rand: %.4f" % (vi[0], rand_indices[0,0]))
+    
     if options.binary_label:
         tp = zeros(num_particles)
         fp = zeros(num_particles)
@@ -512,7 +514,10 @@ def do_statistics(options):
         out.append("MAP: FP: %.4f; FN: %.4f; FScore: %.4f; RPV: %i" % (fp[0]/labels.shape[0], fn[0]/(fn[0] + tp[0]),fscore[0],rpvs[0]))
 
     outstr = '\n'.join(out)
-    print outstr
+    if not options.quiet:
+        print outstr
+    else:
+        print (options.identifier + ": VI: %.2f (%.1f)" % (mean(vi),mean(unique_predicted)))
     outfile = open(stats_fn,"w")
     outfile.write(outstr)
     outfile.close()
