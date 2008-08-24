@@ -271,16 +271,20 @@ def do_plotting(options):
     # Label entropy vs. time
     clf()
     ent = compute_label_entropy(predicted_labels)
-    plot(ent,linewidth=0.1)
-    plot(ess[2,:],linewidth=0.3)
+    subplot(2,1,1)
+    plot(data_time,ent,'x',linewidth=1.5)
+    title("Label Entropy")
     ylabel("Entropy")
-    xlabel("Time step")
-    F = gcf()
-    F.set_size_inches(12,3)
-    title("Label Entropy vs. time steps")
+    grid()
+    subplot(2,1,2)
+    plot(data_time,ess[2,:],'x',linewidth=1.5)
+    ylabel("Entropy")
+    xlabel("Time (ms)")
+    #axis([0,60000,0,1])
+    title("Average Label Filtering Distribution Entropy (SMC)")
     grid()
     F = gcf()
-    F.set_size_inches(6,2)
+    F.set_size_inches(6,4)
     savefig(plot_dir + "/" + "entropy" + ext)
 
 
@@ -297,11 +301,12 @@ def do_plotting(options):
     isi = data_time[1:]-data_time[:-1]
     rpvs = where(isi < 2)[0] + 1
     rpvs = hstack((rpvs,rpvs-1))
-    plotting.plot_pcs_against_time_labeled(data[:,rpvs],data_time[rpvs],
-            predicted_labels[particle_id,rpvs])
-    F = gcf()
-    F.set_size_inches(8.3,4*data.shape[0])
-    savefig(plot_dir + "/" + "pcs_vs_time_rpv" + ext)
+    if rpvs.shape[0] > 0:
+        plotting.plot_pcs_against_time_labeled(data[:,rpvs],data_time[rpvs],
+                predicted_labels[particle_id,rpvs])
+        F = gcf()
+        F.set_size_inches(8.3,4*data.shape[0])
+        savefig(plot_dir + "/" + "pcs_vs_time_rpv" + ext)
 
 
     # 2D scatter plot with binary labels
@@ -328,13 +333,22 @@ def do_plotting(options):
 
     # plot of effective sample size
     clf()
+    subplot(2,1,1)
     plot(ess[1,:],linewidth=0.3)
+    title('Unique Particles')
+    ylabel("Unique Particles")
+    axis([0,650,0,1100])
+    grid()
+    xlabel("Time Step")
+    subplot(2,1,2)
     plot(ess[0,:],linewidth=0.3)
-    legend(('Unique Particles', 'ESS'))
+    axis([0,650,0,1100])
     title("Effective Sample Size")
     xlabel("Time Step")
     ylabel("ESS")
     grid()
+    F = gcf()
+    F.set_size_inches(6,4)
     savefig(plot_dir + "/" + "ess" + ext)
 
     # ISI histogram for each neuron
@@ -347,7 +361,7 @@ def do_plotting(options):
         times = data_time[l==c]
         isi = times[1:] - times[0:-1]
         subplot(unique_labels.shape[0],2,2*i+1)
-        label_colors = array(unique_labels,dtype=float64)/max(unique_labels)
+        label_colors = array(unique_labels,dtype=float64)/max(unique_labels+1)
         colors = ones(sum(l==c))*label_colors[i]
         scatter(points[0,:],points[1,:],marker=plotting.markers[c],c=colors,
                 cmap=matplotlib.cm.jet,
@@ -373,14 +387,14 @@ def do_plotting(options):
         clf()
         # plot of clusters + data at fixed, equally spaced time points
         num_plots = 9
-        timepoints = array(arange(num_plots)*(T-1)/(float(num_plots)-1),dtype=int32)
+        timepoints = array(arange(1,num_plots+1)*(T-1)/(float(num_plots)),dtype=int32)
         for i in range(num_plots):
             subplot(3,3,i+1)
             t = timepoints[i]
             plotting.plot_state_with_data(particle,data,data_time,t)
             title("t = " + str(t))
             grid()
-        F.set_size_inches(8.3,8.3)
+        F.set_size_inches(6,6)
         savefig(plot_dir + "/" + "cluster_evolution" + ext)
 
         # plot of cluster means and variances over time

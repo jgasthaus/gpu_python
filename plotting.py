@@ -15,7 +15,7 @@ markers = ['+','x','o','d','^','>' ,'v' ,'<' ,'s','p' ,'h' ,'8']*10
 def plot_scatter_2d(data,labels):
     unique_labels = unique(labels)
     label_markers = array(markers)[unique_labels % len(markers)]
-    label_colors = array(unique_labels,dtype=float64)/max(unique_labels)
+    label_colors = array(unique_labels,dtype=float64)/max(unique_labels + 1)
     for i in range(len(unique_labels)):
         l = unique_labels[i]
         colors = ones(sum(labels==l))*label_colors[i]
