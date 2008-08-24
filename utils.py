@@ -1,5 +1,5 @@
 import numpy as N
-from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32, where
+from numpy import array, exp, log, sqrt, cumsum, empty, zeros, pi, int32, where,inf
 from scipy.special import gammaln
 import numpy.random as R
 import logging
@@ -335,6 +335,8 @@ def rmultinomial(p, N):
     
 # Geometric distribution with probability of survival p
 def rgeometric(p):
+    if p == 1:
+        return inf
     CHUNKSIZE = 10
     idx = array([])
     j = -1
