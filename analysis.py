@@ -94,8 +94,11 @@ def map_labels(labels):
     """Map an arbitrary labeling so that in contains labels in 0,...,K."""
     avail = unique(labels)
     mapping = -1*ones(max(avail)+1)
-    for i in range(avail.shape[0]):
-        mapping[avail[i]] = i
+    j = 0
+    for i in range(labels.shape[0]):
+        if mapping[labels[i]]==-1:
+            mapping[labels[i]] = j
+            j += 1
     return take(mapping,labels)
 
 def load_labels(options):
