@@ -438,7 +438,6 @@ class GibbsSampler(Inference):
             self.sample_aux_vars(t)
             self.sample_params(t)
             self.state.check_consistency(self.data_time)
-            #print self.state
             raw_input()
 
     def p_crp(self,t,ms,active):
@@ -446,7 +445,7 @@ class GibbsSampler(Inference):
         t given the table sizes m (and the spike times tau).
         """
         if t == 0:
-            return self.params.alpha
+            return 1
         state = self.state
         active = array(list(active))
         num_active = active.shape[0]
