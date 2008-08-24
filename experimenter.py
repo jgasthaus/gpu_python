@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import numpy.random as R
-from numpy import float64, fromstring, zeros, savetxt, vstack
+from numpy import float64, fromstring, zeros, savetxt, vstack, loadtxt
 import logging
 from optparse import OptionParser
 from cfgparse import ConfigParser
@@ -86,7 +86,7 @@ def handle_options():
     c.add_option('max_clusters',dest="max_clusters",default=100)
 
     o.add_option("-a","--algorithm",dest="algorithm",type="choice",
-            metavar="ALG",choices=("pf","gibbs","mh"),
+            metavar="ALG",choices=("pf","gibbs","mh","compute-joint"),
             help="Inference algorithm to use (pf,gibbs,mh).")
     c.add_option('algorithm')
     o.add_option("-d","--dims",dest="use_dims",type="int",
@@ -368,6 +368,29 @@ def load_particle(options):
     else:
         return None
 
+def compute_labeling_probs(data,data_time,m,ip,options):
+    particle = load_particle(options)
+    if particle == None:
+        raise RuntimeError, "Particle not found -- run particle filter first!"
+    state = model.GibbsState(particle,m)
+    state.check_consistency(data_time)
+    sampler = inference.GibbsSampler(
+            data=data,
+            data_time=data_time,
+            params = ip,
+            model=m,
+            state=state) 
+    labels = loadtxt('possible_labelings_10.txt')
+    lnps = zeros(labels.shape[0])
+    for i in range(labels.shape[0]):
+        state.c = labels[i,:]
+        lnp = sampler.p_log_joint(False,False,False)
+        lnps[i] = lnp
+        print i
+    print sum(lnps)
+    savetxt('lnps.txt',lnps)
+
+
 def run_mh(data,data_time,m,ip,options):
     """Run Metropolis-Hastings sampler."""
     # load partcile for initialization
@@ -388,7 +411,7 @@ def run_mh(data,data_time,m,ip,options):
                  options.identifier)
     f = open(prefix + ".mh_labels","w")
     #pylab.ion()
-    T = 2000
+    T = 5000
     for t in range(1,T):
         #print "t = %i / %i" % (t,2000)
         #pylab.clf()
@@ -432,6 +455,8 @@ def main():
         write_pf_output(pf,outdir,opts)
     elif opts.algorithm == "mh":
         run_mh(data,data_time,model,ip,opts)
+    elif opts.algorithm == "compute-joint":
+        compute_labeling_probs(data,data_time,model,ip,opts)
     
     print "Done"
 
