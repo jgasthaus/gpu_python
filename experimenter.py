@@ -384,6 +384,7 @@ def compute_labeling_probs(data,data_time,m,ip,options):
     lnps = zeros(labels.shape[0])
     for i in range(labels.shape[0]):
         state.c = labels[i,:]
+        state.reconstruct_lastspike(data_time)
         lnp = sampler.p_log_joint(False,False,False)
         lnps[i] = lnp
         print i
