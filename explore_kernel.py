@@ -68,6 +68,19 @@ def get_cov(themodel,num,steps):
     # print cov(means.T)
     return cov(means,rowvar=0)
 
+def compute_correlation(seq,diff):
+    m = mean(seq)
+    v = var(seq)
+    sm = seq - m
+    tmp = sm[:-diff]*sm[diff:]
+    return mean(tmp)/v
+
+def compute_acf(seq,N):
+    tmp = zeros(N)
+    for n in range(1,N):
+        tmp[n] = compute_correlation(seq,n)
+    return tmp
+
 
 def main():
     params = model.DiagonalConjugateHyperParams(
@@ -85,10 +98,57 @@ def main():
     m = model.DiagonalConjugate(
             hyper_params=params,
             kernelClass=model.CaronIndependent,
-            kernelParams=tuple([100,1])
+            kernelParams=tuple([100,0.01])
             )
-    diagnostic_plots(m,200)
+    #diagnostic_plots(m,5000)
+    #plot_acf(m,10000,100)
+    #show()
+    figure(2)
+    sigmas = [(1,1),(10,1),(100,1),(1,0.1),(100,0.1),(1,10),(100,10)]
+    for l in sigmas:
+        print l
+        m = model.DiagonalConjugate(
+                hyper_params=params,
+                kernelClass=model.CaronIndependent,
+                kernelParams=tuple(l)
+                )
+        plot_acf(m,100000,100)
+    legend([r"$M=%i,\xi=%.2f$" % i for i in sigmas])
+    subplot(1,2,1)
+    F = gcf()
+    F.set_size_inches(6,3)
+    savefig("acf_caron.pdf")
+    #figure(3)
+    #diagnostic_plots(m,10000)
+    #show()
     # print get_cov(m,1000,30)[:,0]
+
+def plot_acf(m,walk_len,acf_len):
+    start = m.sample_prior()
+    mywalk = gen_walk(m,start,walk_len)
+    walk_means = get_means(mywalk)
+    walk_lambdas = get_lambdas(mywalk)
+    subplot(1,2,1)
+    acf = compute_acf(walk_means[0,:],acf_len)
+    plot(arange(1,acf.shape[0]+1),acf)
+    #acf = compute_acf(walk_means[1,:],acf_len)
+    #plot(arange(1,acf.shape[0]+1),acf)
+    axis([1,acf.shape[0]+1,0,1])
+    title(r"ACF of $\mu$")
+    xlabel(r"$\Delta t$")
+    ylabel("ACF")
+    grid()
+    subplot(1,2,2)
+    acf = compute_acf(walk_lambdas[0,:],acf_len)
+    plot(acf)
+    #acf = compute_acf(walk_lambdas[1,:],acf_len)
+    #plot(acf)
+    axis([1,acf.shape[0]+1,0,1])
+    title(r"ACF of $\lambda$")
+    xlabel(r"$\Delta t$")
+    grid()
+    #ylabel("ACF")
+
 
 def diagnostic_plots(m,length):
     start = m.sample_prior()
@@ -114,7 +174,6 @@ def diagnostic_plots(m,length):
     subplot(3,2,6)
     plot(walk_lambdas[0,:],)
     plot(walk_lambdas[1,:],'r')
-
     #subplot(3,2,5)
     #plot(get_probs(mywalk,m))
 
