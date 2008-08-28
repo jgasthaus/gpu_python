@@ -257,7 +257,6 @@ class ExtendingList(list):
             return out
 
     def shallow_copy(self):
-        # FIXME: This may be inefficient
         new = ExtendingList(self.default)
         new.extend(self)
         return new
