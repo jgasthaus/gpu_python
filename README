@@ -1,0 +1,113 @@
+GPUDPM Spike Sorting in Python
+==============================
+Jan Gasthaus (j.gasthaus@ucl.ac.uk)
+
+Description
+-----------
+This code implements the GPUDPM spike sorting model proposed in 
+[Gasthaus, 2008] in Python, and was used to perform the experiments
+in that report. The code is stable, but not very efficient, thus 
+not suitable for large data sets. It comes with an interface to 
+perform experiments (experimenter.py) which is discussed below.
+
+Requirements
+------------
+The code is written in Python is tested with Python 2.5, though older versions
+might also work. 
+The following additional modules are also needed:
+
+    * NumPy/SciPy [www.scipy.org] (for arrays and random number generation)
+    * Matplotlib [matplotlib.sourceforge.net] (for plotting)
+    * cfgparse [sourceforge.net/projects/cfgparse] (for config file parsing)
+
+Command Line Interface
+----------------------
+The code comes with a command line interface which is controlled through
+configuration files and command line options. A list of available config 
+file options can be obtained with 
+
+----
+#> ./experimenter.py --cfghelp
+----
+
+while a listing of available command line options is available through
+
+----
+#> ./experimenter.py --help
+----
+
+The default settings for most of the parameters are stored in `cfgs/default.cfg`
+which can serve as a starting point for creating your own config files. Also, 
+the `cfgs/` directory contains some example configuration files. After
+creating a configuration file, the experiment can be started with
+
+----
+#> ./experimenter.py --cfgfiles [FILENAME]
+----
+
+This will run the experiment with the parameters given in `[FILENAME]`, falling
+back to `default.cfg` if parameters are not specified.
+
+After the experiment has finished, the results are available in the `output/`
+directory (or the one specified by the `output_dir` option) in a file
+called `[IDENTIFIER].label` or `[IDENTIFIER].mh_labels`. 
+
+A command line tool for analyzing the results and producing plots is also
+provided. After running the experimenter command on a given config file, 
+a call to
+
+----
+#> ./analysis.py --cfgfiles [FILENAME]
+----
+
+will compute various statistics and produce several plots in the 
+`output/[IDENTIFIER]/plots` directory. Type 
+
+----
+#> ./analysis.py --help
+----
+
+for a list of available options.
+
+Data Format
+-----------
+The input data format is a very simple text-based format. Each row represents
+an observed spike event and has the following format:
+
+----
+[LABEL] [SPIKE_TIME] [DIM_1] ... [DIM_D]
+----
+
+where `[LABEL]` is the class label of the observed spike (this is only used by
+`analysis.py` and can just be set to 0 if not known), `[SPIKE_TIME]` is the
+spike occurrence time (in milliseconds from the beginning of the recording),
+and `[DIM_1],...,[DIM_D]` are the D-dimensional feature vectors.
+All numbers should be in a format that is understood by the NumPy `loadtxt`
+function.
+
+License
+-------
+Copyright (C) 2008 Jan Gasthaus
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+References
+----------
+----
+[Gasthaus, 2008] Gasthaus, J. A., "Spike Sorting using Time-Varying Dirichlet
+                 Process Mixture Models", MSc Thesis, Department of Computer
+                 Science, University College London, 2008.
+
+----
