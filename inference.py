@@ -3,7 +3,7 @@ from numpy.random import rand, random_sample
 from scipy.maxentropy.maxentutils import logsumexp
 import logging
 import time
-from pylab import * # DEBUG
+from pylab import *
 import sys
 
 from utils import *
@@ -109,7 +109,6 @@ class ParticleFilter(Inference):
                     m = p.mstore.get_array(t)
                     old_zero = m == 0;
                     if rand() < self.params.p_uniform_deletion: # uniform deletion
-                        # TODO: Speed this up by sampling only from surviving allocations
                         U = random_sample(p.c.shape);
                         # delete from alive allocations with prob. 1-p.rho
                         # We assume that for non-assigned x we have c<0
@@ -119,7 +118,7 @@ class ParticleFilter(Inference):
                         idx = logical_and(logical_and(p.c == i, p.d>=t), p.c >= 0)
                 
                     p.d[idx] = t
-                     # compute current alive cluster sizes p.m; TODO: vectorize this?
+                     # compute current alive cluster sizes p.m
                     for k  in range(p.K):
                         nm = sum(logical_and(p.c[0:t] == k,p.d[0:t]>t))
                         m[k] = nm
@@ -213,27 +212,19 @@ class ParticleFilter(Inference):
                             new_params = self.model.walk(p.U.get(t,cabs))
                         p.U.set(t,cabs,new_params) 
                         
-                # %%% compute incremental weight for this update step {{{ 
-                # %
-                # % The weight is computed from the following components:
-                # %   - prod(Z_qc) -- the normalizer of q(c|m,...); first line of (9)
-                # %   - prod(G0)   -- G0(U); num. of third line of (9)
-                # %   - prod(qU_z) -- q(U|{z|c=k}); denom. of third line of (9)
-                # %   - prod(pU_U) -- p(U|U_old); num. of second line of (9)
-                # %   - prod(qU_Uz)-- q(U|U_old,z); denom. of second line of (9)
+                # compute incremental weight for this update step
+                #
+                # The weight is computed from the following components:
+                #   - prod(Z_qc) -- the normalizer of q(c|m,...); first line of (9)
+                #   - prod(G0)   -- G0(U); num. of third line of (9)
+                #   - prod(qU_z) -- q(U|{z|c=k}); denom. of third line of (9)
+                #   - prod(pU_U) -- p(U|U_old); num. of second line of (9)
+                #   - prod(qU_Uz)-- q(U|U_old,z); denom. of second line of (9)
                 # 
-                # w_inc = prod(Z_qc).*prod(pU_U)./prod(qU_Uz).*prod(G0)./prod(qU_z);
                 # compute probability of current data point under new parameters
                 pz_U = self.model.p_likelihood(x,p.U.get(t,active_c))
                 w_inc = pz_U*Z_qc*G0*p_ratio/qU_z
-                # print pz_U,Z_qc,G0,p_ratio,qU_z
-                # print pz_U*G0/qU_z
-                # print w_inc
                 self.weights[n] *= w_inc
-                # 
-                # if isnan(w_inc) % bad weight -- can happen if underflow occurs
-                #     w_inc = 0; % discard the particle by giving it weight 0
-                # end
 
             ### resample
             # normalize weights
@@ -292,14 +283,10 @@ class GibbsSampler(Inference):
         self.lnps = []
         self.num_accepted = 0
         self.num_rejected = 0
-        self.__init_debugging()
-
-    def __init_debugging(self):
-        pass
 
     def __init_state(self):
         """Initialize the state of the Gibbs sampler."""
-        self.num_clusters = 1 # TODO
+        self.num_clusters = 1 
 
     def p_log_joint(self,inc_walk=True,inc_likelihood=True,inc_death=True):
         """Compute the log-joint probability of the current state."""
@@ -334,7 +321,6 @@ class GibbsSampler(Inference):
                         lnp += self.model.p_log_prior_params(theta)
 
             # c | m
-            # TODO: speed up computation of alive clusters
             lnp += log(self.p_crp(t,ms,active))
             active.add(state.c[t])
 
@@ -348,10 +334,7 @@ class GibbsSampler(Inference):
             if inc_death:
                 lnp += self.p_log_deathtime(t)
        
-       # update mstore
-        # self.mstore = ms
         return lnp
-
 
     def p_log_joint_cs(self):
         return self.p_log_joint(False,False,False)
@@ -360,85 +343,16 @@ class GibbsSampler(Inference):
         """Do one MH sweep through the data, i.e. propose for all parameters
         once."""
         for t in range(self.T):
-            # propose new c_t
             self.sample_label(t)
             self.propose_death_time(t)
             self.sample_params(t)
             self.propose_auxs(t)
-            #print self.num_accepted + self.num_rejected
-            #print ("Acceptance rate: %.2f" % 
-            #  (self.num_accepted/float(self.num_accepted + self.num_rejected)))
-
-    def propose_c(self,t):
-        # propose from mean occupancy count (not symmetric!)
-        active = where(sum(self.mstore,1)>0)[0]
-        K = active.shape[0]
-        forward_probs = zeros(K+1)
-        forward_probs[0:K] = mean(self.mstore[active,:],1)
-        forward_probs[K] = self.params.alpha
-        forward_probs /= sum(forward_probs) # normalize
-        new_c = rdiscrete(forward_probs)
-        forward_lnq = log(forward_probs[new_c])
-        old_c = self.state.c[t]
-        if new_c == K:
-            # new cluster
-            self.active = hstack((active,self.state.free_labels.pop()))
-        self.state.c[t] = active[new_c]
-
-        # TODO need to sample new d as well ...
-
-        new_ms = self.state.reconstruct_mstore(self.state.c,self.state.d)
-        backward_probs = zeros(active.shape[0])
-        backward_probs[0:K] = mean(new_ms[active,:],1)
-        backward_probs[K] = self.params.alpha
-        backward_probs /= sum(backward_probs) # normalize
-
-
-        if mh_accept(backward_lnq - forward_lnq):
-            return
-        else:
-            self.c[t] = old_c
-
-    def mh_accept(self,q_ratio=0.):
-        """Return true if the current state is to be accepted by the MH
-        algorithm and update self.old_lnp. 
-
-        Params:
-            q_ratio -- the log of the ratio of the proposal 
-                       = log q(z|z*)- log q(z*|z)
-                       = 0 if the proposal is symmetric
-        """
-        lnp = self.p_log_joint()
-        A = min(1,exp(lnp - self.old_lnp + q_ratio))
-        if random_sample() < A:
-            # accept! 
-            self.old_lnp = lnp
-            self.num_accepted += 1
-            return True
-        else:
-            # reject
-            self.num_rejected += 1
-            return False
-
-
 
     def p_log_deathtime(self,t):
         """Compute the log probability of the death time of the allocation
         at time step t."""
         alive = self.state.d[t] - t - 1
         return alive*log(self.params.rho) + log(1-self.params.rho)
-
-
-    def sweep(self):
-        """Do one Gibbs sweep though the data."""
-        for t in range(self.T):
-            logging.info("t=%i/%i" % (t,self.T))
-            self.sample_label(t)
-            self.sample_death_time(t)
-            self.sample_aux_vars(t)
-            self.sample_params(t)
-            self.state.check_consistency(self.data_time)
-            raw_input()
 
     def p_crp(self,t,ms,active):
         """Compute the conditional probability of the allocation at time 
@@ -496,133 +410,20 @@ class GibbsSampler(Inference):
             self.state.mstore = self.state.reconstruct_mstore(
                         self.state.c,
                         self.state.d)
-            #print self.state.mstore
         else:
             # reject
             self.num_rejected += 1
             self.state.d[t] = old_d
 
-
-    def sample_death_time(self,t):
-        """Sample a new death time for the allocation variable at time t.
-        
-        The posterior p(d_t|...) is proportional to p(c_(t:last)|d_t)p(d_t),
-        where p(d_t) is prior death time distribution (geometric) and p(c|d_t) 
-        is the probability of the assignments to cluster c_t from the current
-        time step until the last allocation in that cluster dies.
-        """
-        state = self.state
-        c = state.c[t]
-        mc = state.mstore[c,:].copy()
-        d_old = state.d[t]
-        length = self.T - t
-        # relative indices of assignments to this cluster
-        assignments = where(state.c[t:] == c)[0]
-        if assignments[0] != 0:
-            raise RuntimeError,"Something's wrong!"
-        assignments = assignments[1:]
-        # determine the last assignment made to this cluster (rel. to t)
-        last_assignment = assignments[-1]
-        dp = ones(length)
-        
-        # find the last allocation that "depends" on this allocation being,
-        # i.e. without it mstore at that point would be 0.
-        # take out current allocation
-        mc[t:d_old] -= 1
-        dependencies = where(
-                logical_and(state.c[t:d_old] == c,
-                    mc[t:d_old] == 1
-                    ))[0]
-        if len(dependencies)>0:
-            last_dep = dependencies[-1]
-            # the probability of deletion before last_dep is 0
-            dp[0:last_dep]=0
-        else:
-            last_dep = 0
-        possible_deaths = t+arange(last_dep+1,self.T-t+1)
-        p = self.p_labels_given_deathtime(t,possible_deaths) 
-
-        dp[last_dep:self.T-t] = p
-        # The prior probability for d=t+1,...,T
-        prior = self.params.rho ** arange(0,length)*(1-self.params.rho)
-        prior[-1] = 1-sum(prior[0:-1])
-        q = dp * prior
-        q = q / sum(q)
-        dt = rdiscrete(q)
-        return dt + t + 1
-
-    def p_labels_given_deathtime(self,t,possible_deaths):
-        p1 = self.p_labels_given_deathtime_slow(t,possible_deaths)
-        p2 = self.p_labels_given_deathtime_fast(t,possible_deaths)
-        p1 = p1/sum(p1)
-        p2 = p2/sum(p2)
-        assert(all(p1==p2))
-
-    def p_labels_given_deathtime_slow(self,t,possible_deaths):
-        """Compute the likelihood of the label at time t as a function of the
-        possible death times for that label.
-        """
-        c = self.state.c[t]
-        d_old = self.state.d[t]
-        p = ones(possible_deaths.shape[0])
-        for i in range(possible_deaths.shape[0]):
-            d = possible_deaths[i]
-            # construct mstore for this situation
-            ms = self.state.mstore.copy()
-            ms[c,t:d_old] -= 1
-            ms[c,t+1:d] += 1
-            for tau in range(t+1,self.T):
-                p[i] *= self.p_crp(tau,ms[:,tau-1])
-        return p
-
-    def p_labels_given_deathtime_fast(self,t,possible_deaths):
-        """Like the slow version, but compute the likelihood incrementally,
-        thus saving _a lot_ of computation time."""
-        c = self.state.c[t]
-        d_old = self.state.d[t]
-        last_dep = possible_deaths[0] - 1 # this should always be true
-        num_possible = self.T - last_dep
-        assert(num_possible==possible_deaths.shape[0])
-        # possible deaths always ranges from last_dep+1 to T (inclusive)
-        p = ones(possible_deaths.shape[0])
-        # first, compute the full solution for the first possible death time
-        ms = self.state.mstore.copy()
-        # ms[:,t-1] has to represent the state after allocation at time step
-        # t-1 and after deletion at time step t
-        # TODO: Do we have to compute this backwards?!
-        ms[c,last_dep:d_old] -= 1
-        for tau in range(last_dep+1,self.T):
-            p[0] *= self.p_crp(tau,ms[:,tau-1])
-
-        for i in range(1,num_possible-1):
-            d = i + last_dep + 1
-            print d
-            ms[c,d-1] +=1
-            if self.state.c[d] == c:
-                # numerator changed
-                p[i]=p[i-1]/(ms[c,d-1] - 1)*ms[c,d-1]
-
-            old = sum(ms[:,d-1]) + self.params.alpha
-            new = old + 1
-            Z = old/new
-            p[i] = p[i-1]*Z
-        # dying after the last allocation has the same probability a
-        p[-1] = p[-2]
-        return p
-
-
     def sample_label(self,t):
         """Sample a new label for the data point at time t.
         The conditional probability of p(c_t|rest) is proportional to
         p(c_t|seating) x p(x_t|c_t)
-
-        TODO: Handle the case of singletons separately -- the is no point in
-              relabeling them.
         """
         logging.debug("Sampling new label at time %i" % t)
         state = self.state
         c_old = state.c[t]
-        res =  self.log_p_label_posterior_new(t)
+        res =  self.log_p_label_posterior(t)
         possible, p_crp = res
         num_possible = possible.shape[0]
         p_lik = empty(num_possible+1,dtype=float64)
@@ -702,7 +503,6 @@ class GibbsSampler(Inference):
         old_aux = self.state.aux_vars[t,c,:,:]
         new_aux = self.model.kernel.sample_aux(params)
         # we can speed this up by only computing the joint for these params
-        # TODO: Compute A as p(new_params|new_aux)/p(new_params|old_aux)
         if self.state.c[t] == c:
             data = self.data[:,t]
         else:
@@ -797,15 +597,14 @@ class GibbsSampler(Inference):
         We can assume that the cluster has existed at the previous time step.
         """
         logging.debug("Sampling aux vars for cluster %i at time %i" % (c,t)) 
-        # FIXME: This is incorrect, as it does not take the future into account!
         self.state.aux_vars[t,c,:,:] = self.model.kernel.sample_aux(
                 self.state.U[c,t-1])
 
-    def log_p_label_posterior_new(self,t):
+    def log_p_label_posterior(self,t):
         """Compute the conditional probability over allocation variables at
         time t."""
         state = self.state
-        d = min(state.d[t],state.T) # TODO: min needed?
+        d = min(state.d[t],state.T) 
         possible = where(sum(state.mstore[:,t:d],1)>0)[0]
         lnp = zeros(possible.shape[0]+1)
         old_c = self.state.c[t]
@@ -819,70 +618,6 @@ class GibbsSampler(Inference):
         self.state.c[t] = old_c
         # normalize
         return (possible,lnp - logsumexp(lnp))
-
-
-    def log_p_label_posterior(self,t):
-        """Compute the posterior probability over allocation variables given
-        all other allocation variables and death times.
-        
-        Returns:
-            None            if the allocation cannot be changed due to DCW
-            (possible,p)    where possible is an array of cluster labels
-                            the we can assign to, and p is an array of 
-                            the respective probabilities.
-        """
-        # 2) temporarily remove the current allocation from the counts m
-        # 3) for each possible label:
-        #       - temporarily assign to this cluster and update m
-        #       - compute joint of seating arrangement up to d_t
-        state = self.state
-        ms = state.mstore.copy() # local working copy
-        c_old = state.c[t]
-        d = min(state.d[t],state.T) # TODO: min needed?
-        # remove from old cluster
-        ms[c_old,t:d] = ms[c_old,t:d] - 1
-        # Check for "dying customer's wish": 
-        # If removing the current allocation causes the cluster to die, but
-        # data is assigned to it _after_ its death, then we can't move the
-        # allocation
-        tmp = where(ms[c_old,t:]==0)[0]
-        if tmp.shape[0] == 0:
-            new_death = state.T+1
-        else:
-            new_death = t + tmp[0]
-        if any(where(state.c==c_old)[0]>=new_death):
-            # dying customers wish
-            logging.debug("DCW at time %i, %i=>%i" % 
-                    (t,state.deathtime[c_old],new_death))
-            return None
-        
-        # 1) Determine which clusters we can potentially assign to:
-        #       - any cluster that is alive at any point from now until this
-        #         alloc dies
-        possible = where(sum(state.mstore[:,t:d],1)>0)[0]
-        # remove allocation c_t from ms[c_t,t]
-        for tau in range(t+1,d):
-            ms[state.c[tau],tau] -= 1
-        p_crp = zeros(possible.shape[0],dtype=float64)
-        for i in range(possible.shape[0]):
-            ms_tmp = ms.copy()
-            c_new = possible[i]
-            # temporarily allocate to c_new
-            ms_tmp[c_new,t:d] +=1
-            if ms_tmp[c_new,t] > 0:
-                p_crp[i] = log(ms_tmp[c_new,t])
-            for tau in range(t+1,d):
-                if ms_tmp[c_new,tau] > 0:
-                    p_crp[i] += log(ms_tmp[c_new,tau])
-        # The normalization constant (normalized such that the probability for
-        # starting a new cluster is alpha) is given by the product of mstore
-        # for t+1:d
-        Z = 0.
-        for tau in range(t+1,d):
-            if ms[state.c[tau],tau] > 0:
-                Z += log(ms[state.c[tau],tau])
-        return (possible,p_crp - logsumexp(p_crp))
-        
 
     def get_active(self,t):
         """Return a list of active clusters at time t."""
