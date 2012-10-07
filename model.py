@@ -1,3 +1,26 @@
+# Copyright (c) 2008-2011, Jan Gasthaus
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer. 
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.  
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import numpy.random as R
 from collections import deque
 
@@ -21,7 +44,6 @@ class TransitionKernel(object):
         return (self.walk(params,tau),1)
 
     def walk_backwards(self,params,tau=None):
-        # FIXME: Not always true ...
         return self.walk(params,tau) 
 
 class MetropolisWalk(TransitionKernel):
@@ -46,7 +68,6 @@ class MetropolisWalk(TransitionKernel):
         # Metropolis update rule
         new_params = self.model.get_storage(n_mu,n_lam)
         p_new = exp(self.model.p_log_prior_params(new_params))
-        # print p_new,p_old,p_new/p_old      
         if R.rand() > p_new/p_old: # not accepted -> keep old values
             new_params = params
         return new_params
@@ -129,7 +150,6 @@ class CaronIndependent(TransitionKernel):
             N = num_aux
             nn = num_aux/self.rho 
         if data != None:
-            #print aux_vars.shape,data.shape
             aux_vars = c_[aux_vars,data]
         data_mean = mean(aux_vars,1)
         # make data_mean a rank-2 D-by-1 array so we can use broadcasting
@@ -170,23 +190,7 @@ class DiagonalConjugate(Model):
         self.walk = self.kernel.walk
         self.walk_with_data = self.kernel.walk_with_data
 
-    def read_params(self):
-        """Read the parameters of the model from a file.
-        """
-        # Maybe use the ConigParser class?
-        pass # TODO
-
-    def write_params(self):
-        """Write the parameters of this model to a file, so it can be 
-        reconstructed using read_params.
-        """
-        pass # TODO
-
     def set_data(self,data):
-        # if data.shape[1]!=0:
-        #     self.empty = True
-        # else:
-        #     self.empty = False;
         if len(data.shape) <= 1:
             # just one data point
             self.mean = data
@@ -287,7 +291,6 @@ class DiagonalConjugate(Model):
     def sample_Uz(self,mu,lam,data,num_sir_samples=10):
         """Sample from p(U|U_old,z)=p(U|U_old)p(z|U)/Z."""
         if self.empty:
-            #TODO: Dependence of walk on tau
             return (self.walk(mu,lam),1)
 
         # SIR: sample from P(U|U_old), compute weights P(x|U), then 
@@ -297,7 +300,6 @@ class DiagonalConjugate(Model):
         sir_weights = zeros(num_sir_samples)
         p_old = self.p_log_prior_params(mu,lam);
         for s in range(num_sir_samples):
-            # TODO: dependence of walk on tau
             tmp = walk(mu,lam,p_old=p_old);
             mu_samples[:,s] = tmp.mu
             lam_samples[:,s] = tmp.lam
@@ -365,8 +367,6 @@ class DiagonalConjugateStorage(object):
         return self.__str__()
 
 
-
-
 class Particle(object):
     """The Particle class stores the state of the particle filter / Gibbs
     sampler.
@@ -406,9 +406,6 @@ class Particle(object):
             # with each cluster for each time step. 
             self.lastspike = self.storage_class(T,dtype=float64,
                     max_clusters=self.max_clusters)
-            
-            # cell array to store the sampled values of rho across time
-            # self.rhostore = zeros(T);
             
             # Parameter values of each cluster 1...K at each time step 1...T
             self.U = self.storage_class(T,dtype=object,
@@ -503,7 +500,7 @@ class GibbsState():
         # vector to store the death times of clusters (0 if not dead)
         self.deathtime = particle.deathtime.to_array(self.max_clusters,
                                                      dtype=int32) 
-        self.deathtime[self.deathtime==0] = self.T # TODO: Needed?
+        self.deathtime[self.deathtime==0] = self.T
         
         # determine active clusters
         active = where(sum(self.mstore,1)>0)[0]
@@ -537,7 +534,7 @@ class GibbsState():
 
     def __empty_state(self):
         """Set all fields to represent an empty state."""
-        pass # TODO -> do we really need this?
+        pass 
 
     def check_consistency(self,data_time):
         """Check consistency of the Gibbs sampler state.
@@ -547,9 +544,7 @@ class GibbsState():
             1) if m(c,t) > 0 then U(c,t) != None
             2) m(c,birth:death-1)>0 and m(c,0:birth)==0 and m(c,death:T)==0
             3) m matches the information in c and deathtime
-            4) birthtime matches c
-            5) no parameter is NaN
-            6) check that lastspike is correct
+            4) check that lastspike is correct
 
         """
         errors = 0
@@ -583,7 +578,6 @@ class GibbsState():
                 logging.error("deatime does not contain the first zero after "+
                         "birth of cluster %i (%i!=%i)" % 
                         (c,self.deathtime[c],death))
-                print self.mstore[active,:]
             if (any(self.mstore[c,birth:death]==0)):
                 logging.error(("Consistency error: mstore 0 while " +
                    "cluster %i is alive") % c)
@@ -600,13 +594,7 @@ class GibbsState():
             logging.error("Consitency error: Cannot reconstruct " +
                           "mstore from c and d")
 
-        # check 4) 
-        # birth = where(self.mstore[c,:]>0)[0][0]
-        # print birth
-
-        # check 5)
-
-        # check 6)
+        # check 4)
         # lastspike[c,t] is supposed to contain the last spike time for all
         # clusters _after_ the observation at time t
         lastspike = zeros(self.max_clusters)
