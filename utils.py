@@ -312,8 +312,8 @@ def rnorm_many(mu,lam,N):
 
 # Student-t distribution
 def logpstudent(x, mu, lam, alpha):
-    lnc = gammaln(0.5*(alpha + 1)) - gammaln(0.5*alpha) 
-                  + 0.5*(log(lam) - log(alpha) - log(pi))
+    lnc = (gammaln(0.5*(alpha + 1)) - gammaln(0.5*alpha) 
+                  + 0.5*(log(lam) - log(alpha) - log(pi)))
     lnp = lnc - (alpha+1)/2 * log(1+(lam*(x-mu)**2)/alpha)
     return lnp
 
