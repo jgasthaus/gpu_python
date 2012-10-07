@@ -77,7 +77,7 @@ def handle_options():
     c = ConfigParser()
     c.add_optparse_help_option(o)
     c.add_optparse_files_option(o)
-    f = c.add_file('default.cfg')
+    f = c.add_file('cfgs/default.cfg')
     o.add_option("-v","--verbose", action="store_true", dest="verbose",
             help="Be verbose.",default=False)
     o.add_option("--debug", action="store_true", dest="debug",
